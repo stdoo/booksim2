@@ -144,7 +144,7 @@ vector<double> Configuration::GetFloatArray(string const & field) const
   string const param_str = GetStr(field);
   return tokenize_float(param_str);
 }
-
+//调用yyparse解析运行参数给出的配置文件，解析出来的配置会替换掉构造config时使用的默认值
 void Configuration::ParseFile(string const & filename)
 {
   if((_config_file = fopen(filename.c_str(), "r")) == 0) {
@@ -157,7 +157,7 @@ void Configuration::ParseFile(string const & filename)
   fclose(_config_file);
   _config_file = 0;
 }
-
+//调用yyparse解析运行参数给出的修改配置命令，解析出来的配置会替换掉构造config时使用的默认值
 void Configuration::ParseString(string const & str)
 {
   _config_string = str + ';';
@@ -223,7 +223,8 @@ extern "C" int config_input(char * line, int max_size)
 {
   return Configuration::GetTheConfig()->Input(line, max_size);
 }
-
+//解析运行参数，如果运行参数中不带"="和"-"，表示没有通过运行参数修改配置，那么，只要调用ParseFile解析运行参数中提供的配置文件即可
+//如果运行参数带"="，表示需要通过运行参数修改配置，此时调用ParseString解析修改配置的命令
 bool ParseArgs(Configuration * cf, int argc, char * * argv)
 {
   bool rc = false;

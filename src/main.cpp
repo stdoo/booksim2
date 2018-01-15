@@ -150,10 +150,11 @@ bool Simulate( BookSimConfig const & config )
   return result;
 }
 
-
+//在debug模式下，CLion可以配置程序运行的参数（Edit configurations->program arguments），通过运行参数可指定booksim的配置文件
+//写配置文件相对路径时要注意程序的默认路径为可执行文件"booksim2"所在的路径（即argv[0]）
 int main( int argc, char **argv )
 {
-
+//调用BookSimConfig类的构造函数实例化对象config，构造函数位于booksim_config.cpp
   BookSimConfig config;
 
 
