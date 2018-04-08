@@ -104,7 +104,7 @@ BookSimConfig::BookSimConfig( )
   AddStrField("spec_sw_allocator", "prio");
   
   _int_map["num_vcs"]         = 16;  
-  _int_map["vc_buf_size"]     = 8;  //per vc buffer size
+  _int_map["vc_buf_size"]     = 8;  //per vc buffer size.要么直接给出每条物理信道的缓存buf_size，由所有虚拟信道共享。要么给出每条虚拟信道的缓存vc_buf_size
   _int_map["buf_size"]        = -1; //shared buffer size
   AddStrField("buffer_policy", "private"); //buffer sharing policy
 
@@ -132,10 +132,10 @@ BookSimConfig::BookSimConfig( )
   _int_map["input_speedup"]     = 1;  // expansion of input ports into crossbar
   _int_map["output_speedup"]    = 1;  // expansion of output ports into crossbar
 
-  _int_map["routing_delay"]    = 1;  
+  _int_map["routing_delay"]    = 0;  //如果路由延迟为0，表明是前瞻路由
   _int_map["vc_alloc_delay"]   = 1;  
   _int_map["sw_alloc_delay"]   = 1;  
-  _int_map["st_prepare_delay"] = 0;
+  _int_map["st_prepare_delay"] = 0;//路由器流水线一般分为4个stage，分别为RC 路由计算、VA 虚拟信道分配、SA switch分配和ST switch travel。其中ST延迟为st_prepare_delay + st_final_delay。这四个延迟刚好描述了一个完整的路由流水线延迟。
   _int_map["st_final_delay"]   = 1;
 
   //==== Event-driven =====================================
@@ -306,9 +306,9 @@ BookSimConfig::BookSimConfig( )
   AddStrField("sent_packets_out", "");
   
   //==================Power model params=====================
-  _int_map["sim_power"] = 0;
+  _int_map["sim_power"] = 1;
   AddStrField("power_output_file","pwr_tmp");
-  AddStrField("tech_file", "");
+  AddStrField("tech_file", "../src/power/techfile.txt");
   _int_map["channel_width"] = 128;
   _int_map["channel_sweep"] = 0;
 

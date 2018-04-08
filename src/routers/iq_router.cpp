@@ -82,17 +82,17 @@ IQRouter::IQRouter( Configuration const & config, Module *parent,
 
   // Alloc VC's
   _buf.resize(_inputs);
-  for ( int i = 0; i < _inputs; ++i ) {
+  for ( int i = 0; i < _inputs; ++i ) {//为每个input信道创建buffer，在buffer中创建vc。注意这里的input信道包含了inject信道，但并不包括credit信道
     ostringstream module_name;
     module_name << "buf_" << i;
-    _buf[i] = new Buffer(config, _outputs, this, module_name.str( ) );
+    _buf[i] = new Buffer(config, _outputs, this, module_name.str( ) );//对每个输入信道（物理），计算其缓存大小，并创建虚拟信道
     module_name.str("");
   }
 
   // Alloc next VCs' buffer state
   _next_buf.resize(_outputs);
-  for (int j = 0; j < _outputs; ++j) {
-    ostringstream module_name;
+  for (int j = 0; j < _outputs; ++j) {//flit通过input信道进入路由器之后，下一步就要使用路由器的output信道发送出去，所以需要掌握该路由器output信道的状态
+    ostringstream module_name;//网络产生的flits首先存储在_partial_packet里面，而不是某个信道的buffer，当流量注入网络时，在PE角度，inject是output信道。但inject用到所有虚拟信道，只需要知道buf_4（occupancy和buf_size）就足够
     module_name << "next_vc_o" << j;
     _next_buf[j] = new BufferState( config, this, module_name.str( ) );
     module_name.str("");
@@ -110,7 +110,7 @@ IQRouter::IQRouter( Configuration const & config, Module *parent,
     _vc_allocator = Allocator::NewAllocator( this, "vc_allocator", 
 					     vc_alloc_type,
 					     _vcs*_inputs, 
-					     _vcs*_outputs );
+					     _vcs*_outputs );//虚拟信道数以输入物理信道和输出物理信道为基准
 
     if ( !_vc_allocator ) {
       Error("Unknown vc_allocator type: " + vc_alloc_type);
@@ -121,7 +121,7 @@ IQRouter::IQRouter( Configuration const & config, Module *parent,
   _sw_allocator = Allocator::NewAllocator( this, "sw_allocator",
 					   sw_alloc_type,
 					   _inputs*_input_speedup, 
-					   _outputs*_output_speedup );
+					   _outputs*_output_speedup );//以物理输入信道和输出信道数为基础，扩展crossbar的输入端口和输出端口数
 
   if ( !_sw_allocator ) {
     Error("Unknown sw_allocator type: " + sw_alloc_type);
@@ -168,8 +168,8 @@ IQRouter::IQRouter( Configuration const & config, Module *parent,
   _switch_hold_out.resize(_outputs*_output_speedup, -1);
   _switch_hold_vc.resize(_inputs*_input_speedup, -1);
 
-  _bufferMonitor = new BufferMonitor(inputs, _classes);
-  _switchMonitor = new SwitchMonitor(inputs, outputs, _classes);
+  _bufferMonitor = new BufferMonitor(inputs, _classes);//初始化reads和writes向量
+  _switchMonitor = new SwitchMonitor(inputs, outputs, _classes);//初始化event向量
 
 #ifdef TRACK_FLOWS
   for(int c = 0; c < _classes; ++c) {
@@ -212,14 +212,14 @@ void IQRouter::AddOutputChannel(FlitChannel * channel, CreditChannel * backchann
 {
   int alloc_delay = _speculative ? max(_vc_alloc_delay, _sw_alloc_delay) : (_vc_alloc_delay + _sw_alloc_delay);
   int min_latency = 1 + _crossbar_delay + channel->GetLatency() + _routing_delay + alloc_delay + backchannel->GetLatency()  + _credit_delay;
-  _next_buf[_output_channels.size()]->SetMinLatency(min_latency);
+  _next_buf[_output_channels.size()]->SetMinLatency(min_latency);//函数体为空，没有min_latency这个变量
   Router::AddOutputChannel(channel, backchannel);
 }
 
 void IQRouter::ReadInputs( )
 {
-  bool have_flits = _ReceiveFlits( );
-  bool have_credits = _ReceiveCredits( );
+  bool have_flits = _ReceiveFlits( );//遍历路由器的_input_channels，如果有_output不为NULL的信道，则将_output给_in_queue_flits；并把_active变为true返回。
+  bool have_credits = _ReceiveCredits( );//遍历路由器的_output_credits信道，如果有_output不为NULL的，就将_output给_proc_credits；并把_active变为true返回。
   _active = _active || have_flits || have_credits;
 }
 
@@ -229,13 +229,13 @@ void IQRouter::_InternalStep( )
     return;
   }
 
-  _InputQueuing( );
+  _InputQueuing( );//将_in_queue_flits给到vc的buffer
   bool activity = !_proc_credits.empty();
 
   if(!_route_vcs.empty())
     _RouteEvaluate( );
   if(_vc_allocator) {
-    _vc_allocator->Clear();
+    _vc_allocator->Clear();//清除_in_req _out_req _in_occ _out_occ和_in_match _out_match
     if(!_vc_alloc_vcs.empty())
       _VCAllocEvaluate( );
   }
@@ -336,9 +336,9 @@ bool IQRouter::_ReceiveCredits( )
 // input queuing
 //------------------------------------------------------------------------------
 
-void IQRouter::_InputQueuing( )
+void IQRouter::_InputQueuing( )//flit流通：_input -> _wait_queue -> _output -> _in_queue_flits -> cur_buf(cur_vc->buffer)
 {
-  for(map<int, Flit *>::const_iterator iter = _in_queue_flits.begin();
+  for(map<int, Flit *>::const_iterator iter = _in_queue_flits.begin();//判断_in_queue_flits的内容是否有问题 -> 将flit添加到vc的buffer -> 判断vc的buffer里面的flit是否有问题 -> 将flit的路由信息给vc，vc的_state设为Alloc
       iter != _in_queue_flits.end();
       ++iter) {
 
@@ -348,7 +348,7 @@ void IQRouter::_InputQueuing( )
     Flit * const f = iter->second;
     assert(f);
 
-    int const vc = f->vc;
+    int vc = f->vc;
     assert((vc >= 0) && (vc < _vcs));
 
     Buffer * const cur_buf = _buf[input];
@@ -367,18 +367,18 @@ void IQRouter::_InputQueuing( )
       }
       *gWatchOut << ")." << endl;
     }
-    cur_buf->AddFlit(vc, f);
+    cur_buf->AddFlit(vc, f);//AddFlit作用：buf[input]的occupancy++；将flit加入对应虚拟信道的buffer队列。
 
 #ifdef TRACK_FLOWS
     ++_stored_flits[f->cl][input];
     if(f->head) ++_active_packets[f->cl][input];
 #endif
 
-    _bufferMonitor->write(input, f) ;
+    _bufferMonitor->write(input, f) ;//bufferMonitor的writes[input]++
 
     if(cur_buf->GetState(vc) == VC::idle) {
-      assert(cur_buf->FrontFlit(vc) == f);
-      assert(cur_buf->GetOccupancy(vc) == 1);
+      assert(cur_buf->FrontFlit(vc) == f);//vc的buffer.front()
+      assert(cur_buf->GetOccupancy(vc) == 1);//vc的buffer.size()
       assert(f->head);
       assert(_switch_hold_vc[input*_input_speedup + vc%_input_speedup] != vc);
       if(_routing_delay) {
@@ -392,8 +392,8 @@ void IQRouter::_InputQueuing( )
 		     << " (front: " << f->id
 		     << ")." << endl;
 	}
-	cur_buf->SetRouteSet(vc, &f->la_route_set);
-	cur_buf->SetState(vc, VC::vc_alloc);
+	cur_buf->SetRouteSet(vc, &f->la_route_set);//flit的la_route_set给到vc的_route_set
+	cur_buf->SetState(vc, VC::vc_alloc);//vc的_state设为vc_alloc
 	if(_speculative) {
 	  _sw_alloc_vcs.push_back(make_pair(-1, make_pair(make_pair(input, vc),
 							  -1)));
@@ -417,7 +417,7 @@ void IQRouter::_InputQueuing( )
       }
     }
   }
-  _in_queue_flits.clear();
+  _in_queue_flits.clear();//对in_queue_flits里面的所有flit完成上面操作后清空队列
 
   while(!_proc_credits.empty()) {
 
@@ -558,7 +558,7 @@ void IQRouter::_VCAllocEvaluate( )
 
   for(deque<pair<int, pair<pair<int, int>, int> > >::iterator iter = _vc_alloc_vcs.begin();
       iter != _vc_alloc_vcs.end();
-      ++iter) {
+      ++iter) {//_vc_alloc_vcs={-1, [(4, 0), -1]}，两个-1由程序指定，4为输入信道，0为vc
 
     int const time = iter->first;
     if(time >= 0) {
@@ -573,7 +573,7 @@ void IQRouter::_VCAllocEvaluate( )
     assert(iter->second.second == -1);
 
     Buffer const * const cur_buf = _buf[input];
-    assert(!cur_buf->Empty(vc));
+    assert(!cur_buf->Empty(vc));//vc的buffer是否为空
     assert(cur_buf->GetState(vc) == VC::vc_alloc);
 
     Flit const * const f = cur_buf->FrontFlit(vc);
@@ -592,7 +592,7 @@ void IQRouter::_VCAllocEvaluate( )
     OutputSet const * const route_set = cur_buf->GetRouteSet(vc);
     assert(route_set);
 
-    int const out_priority = cur_buf->GetPriority(vc);
+    int const out_priority = cur_buf->GetPriority(vc);//vc的_pri，当多个vc竞争同一条输出信道时，依据out_priority选择优先级最高的vc
     set<OutputSet::sSetElement> const setlist = route_set->GetSet();
 
     bool elig = false;
@@ -628,8 +628,8 @@ void IQRouter::_VCAllocEvaluate( )
       for(int out_vc = vc_start; out_vc <= vc_end; ++out_vc) {
 	assert((out_vc >= 0) && (out_vc < _vcs));
 
-	int in_priority = iset->pri;
-	if(_vc_prioritize_empty && !dest_buf->IsEmptyFor(out_vc)) {
+	int in_priority = iset->pri;//_route_set的优先级
+	if(_vc_prioritize_empty && !dest_buf->IsEmptyFor(out_vc)) {//1.优先empty vc，值为0；2.返回_vc_occupancy[vc]==0
 	  assert(in_priority >= 0);
 	  in_priority += numeric_limits<int>::min();
 	}
@@ -640,7 +640,7 @@ void IQRouter::_VCAllocEvaluate( )
 	// requesting the same output VC, the priority of VCs is based on the 
 	// actual packet priorities, which is reflected in "out_priority".
 	
-	if(!dest_buf->IsAvailableFor(out_vc)) {
+	if(!dest_buf->IsAvailableFor(out_vc)) {//返回_in_use_by[vc]<0
 	  if(f->watch) {
 	    int const use_input_and_vc = dest_buf->UsedBy(out_vc);
 	    int const use_input = use_input_and_vc / _vcs;
@@ -679,9 +679,9 @@ void IQRouter::_VCAllocEvaluate( )
 	      watched = true;
 	    }
 	    int const input_and_vc
-	      = _vc_shuffle_requests ? (vc*_inputs + input) : (input*_vcs + vc);
-	    _vc_allocator->AddRequest(input_and_vc, out_port*_vcs + out_vc, 
-				      0, in_priority, out_priority);
+	      = _vc_shuffle_requests ? (vc*_inputs + input) : (input*_vcs + vc);//_vc_shuffle_requests来源于配置文件；input为输入信道;vc为flit选择的vc
+	    _vc_allocator->AddRequest(input_and_vc, out_port*_vcs + out_vc, //对allocator来说，有10个输入信道和10个输出信道，从0到9编号，则第四个输入信道的两个虚拟信道分别为8和9;第一个输出信道为2，3。
+				      0, in_priority, out_priority);//添加_in_req和_out_req
 	  }
 	}
       }
@@ -698,7 +698,7 @@ void IQRouter::_VCAllocEvaluate( )
     _vc_allocator->PrintRequests( gWatchOut );
   }
 
-  _vc_allocator->Allocate();
+  _vc_allocator->Allocate();//input output 相互授权grants和配对 _in_match _out_match
 
   if(watched) {
     *gWatchOut << GetSimTime() << " | " << _vc_allocator->FullName() << " | ";
@@ -741,9 +741,9 @@ void IQRouter::_VCAllocEvaluate( )
 
     if(output_and_vc >= 0) {
 
-      int const match_output = output_and_vc / _vcs;
+      int const match_output = output_and_vc / _vcs;//输出端口
       assert((match_output >= 0) && (match_output < _outputs));
-      int const match_vc = output_and_vc % _vcs;
+      int const match_vc = output_and_vc % _vcs;//输出端口的vc
       assert((match_vc >= 0) && (match_vc < _vcs));
 
       if(f->watch) {
@@ -894,10 +894,10 @@ void IQRouter::_VCAllocUpdate( )
       BufferState * const dest_buf = _next_buf[match_output];
       assert(dest_buf->IsAvailableFor(match_vc));
       
-      dest_buf->TakeBuffer(match_vc, input*_vcs + vc);
+      dest_buf->TakeBuffer(match_vc, input*_vcs + vc);//_in_used_by[match_vc]=input*_vc+vc
 	
-      cur_buf->SetOutput(vc, match_output, match_vc);
-      cur_buf->SetState(vc, VC::active);
+      cur_buf->SetOutput(vc, match_output, match_vc);//设置当前vc的_out_port为match_outport，_out_vc为match_vc
+      cur_buf->SetState(vc, VC::active);//设置当前vc状态为active
       if(!_speculative) {
 	_sw_alloc_vcs.push_back(make_pair(-1, make_pair(item.second.first, -1)));
       }

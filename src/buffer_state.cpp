@@ -545,16 +545,16 @@ BufferState::BufferState( const Configuration& config, Module *parent, const str
     _size = _vcs * config.GetInt("vc_buf_size");
   }
 
-  _buffer_policy = BufferPolicy::New(config, this, "policy");
+  _buffer_policy = BufferPolicy::New(config, this, "policy");//private表示为每个VC分配独立的buffer，即vc_buf_size；share表示所有VC共享buffer，即buf_size，这样每条VC的buffer为buf_size/vc_num
 
   _wait_for_tail_credit = config.GetInt( "wait_for_tail_credit" );
 
-  _vc_occupancy.resize(_vcs, 0);
+  _vc_occupancy.resize(_vcs, 0);//虚拟信道vc被占用的缓存数，_vc_occupancy[vc]
 
-  _in_use_by.resize(_vcs, -1);
-  _tail_sent.resize(_vcs, false);
+  _in_use_by.resize(_vcs, -1);//虚拟信道vc是否被使用，如果被使用，_in_use_by[vc]加1
+  _tail_sent.resize(_vcs, false);//tail flit是否通过vc发送？如果是，则_tail_sent[vc]变为true
 
-  _last_id.resize(_vcs, -1);
+  _last_id.resize(_vcs, -1);//记录vc最近发送的flit的ID和packet ID，分别为_last_id[vc]和_last_pid[vc]
   _last_pid.resize(_vcs, -1);
 
 #ifdef TRACK_BUFFERS
@@ -616,21 +616,21 @@ void BufferState::ProcessCredit( Credit const * const c )
   }
 }
 
-
+//SendingFlit本质上只是修改了当前节点buffer的状态
 void BufferState::SendingFlit( Flit const * const f )
 {
   int const vc = f->vc;
 
   assert( f && ( vc >= 0 ) && ( vc < _vcs ) );
 
-  ++_occupancy;
+  ++_occupancy;//_occupancy表示注入的flit占用的缓存数，_size表示缓存总数
   if(_occupancy > _size) {
     Error("Buffer overflow.");
   }
 
-  ++_vc_occupancy[vc];
+  ++_vc_occupancy[vc];//表示虚拟信道vc被占用的缓存数
   
-  _buffer_policy->SendingFlit(f);
+  _buffer_policy->SendingFlit(f);//判断虚拟信道vc被占用的缓存是否超过了虚拟信道的缓存
   
 #ifdef TRACK_BUFFERS
   _outstanding_classes[vc].push(f->cl);
@@ -645,7 +645,7 @@ void BufferState::SendingFlit( Flit const * const f )
       _in_use_by[vc] = -1;
     }
   }
-  _last_id[vc] = f->id;
+  _last_id[vc] = f->id;//当前节点虚拟信道vc所服务的flit ID和packet ID
   _last_pid[vc] = f->pid;
 }
 

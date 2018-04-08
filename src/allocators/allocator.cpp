@@ -65,7 +65,7 @@ void Allocator::Clear( )
   }
 }
 
-void Allocator::AddRequest( int in, int out, int label, int in_pri,
+void Allocator::AddRequest( int in, int out, int label, int in_pri,//label为out_vc
 			    int out_pri ) {
 
   assert( ( in >= 0 ) && ( in < _inputs ) );
@@ -314,19 +314,19 @@ bool SparseAllocator::ReadRequest( sRequest &req, int in, int out ) const
 void SparseAllocator::AddRequest( int in, int out, int label, 
 				  int in_pri, int out_pri )
 {
-  Allocator::AddRequest(in, out, label, in_pri, out_pri);
+  Allocator::AddRequest(in, out, label, in_pri, out_pri);//_dirty变为true
   assert( _in_req[in].count(out) == 0 );
   assert( _out_req[out].count(in) == 0 );
 
   // insert into occupied inputs set if
   // input is currently empty
   if ( _in_req[in].empty( ) ) {
-    _in_occ.insert(in);
+    _in_occ.insert(in);//输入信道in被占用
   }
 
   // similarly for the output
   if ( _out_req[out].empty( ) ) {
-    _out_occ.insert(out);
+    _out_occ.insert(out);//输出信道out被占用
   }
 
   sRequest req;

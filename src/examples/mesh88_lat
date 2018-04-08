@@ -30,15 +30,15 @@
 // Topology
 
 topology = mesh;
-k = 8;
+k = 4;
 n = 2;
 
 // Routing
-routing_function = dor;
+routing_function = oddeven;
 
 // Flow control
-num_vcs     = 8;
-vc_buf_size = 8;
+num_vcs     = 2;
+vc_buf_size = 4;
 wait_for_tail_credit = 1;
 
 // Router architecture
@@ -47,7 +47,6 @@ sw_allocator = islip;
 alloc_iters  = 1;
 
 credit_delay   = 2;
-routing_delay  = 0;
 vc_alloc_delay = 1;
 sw_alloc_delay = 1;
 
@@ -57,12 +56,11 @@ internal_speedup  = 1.0;
 
 
 // Traffic
-traffic = transpose;
-packet_size = 20;
+packet_size = 4;
 
 
 // Simulation
 sim_type = latency;
 
-injection_rate = 0.005;
+injection_rate = 0.1;
 

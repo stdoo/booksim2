@@ -32,7 +32,7 @@
 #include "random_utils.hpp"
 
 //#define DEBUG_ISLIP
-
+//Allocator初始化inmatch、outmatch; SparseAllocator初始化in_req、out_req和inmatch、outmatch; isLIP_Sparse初始化gptrs、aptrs、in_req、out_req和inmatch、outmatch
 iSLIP_Sparse::iSLIP_Sparse( Module *parent, const string& name,
 			    int inputs, int outputs, int iters ) :
   SparseAllocator( parent, name, inputs, outputs ),
@@ -42,7 +42,7 @@ iSLIP_Sparse::iSLIP_Sparse( Module *parent, const string& name,
   _aptrs.resize(_inputs, 0);
 }
 
-void iSLIP_Sparse::Allocate( )
+void iSLIP_Sparse::Allocate( )//修改grants的值，将output授权给input
 {
   int input;
   int output;
@@ -63,12 +63,12 @@ void iSLIP_Sparse::Allocate( )
       // Skip loop if there are no requests
       // or the output is already matched
       if ( ( _out_req[output].empty( ) ) ||
-	   ( _outmatch[output] != -1 ) ) {
+	   ( _outmatch[output] != -1 ) ) {//_outmach全部初始化为-1，只要_out_req不为空就不用continue
 	continue;
       }
 
       // A round-robin arbiter between input requests
-      input_offset = _gptrs[output];
+      input_offset = _gptrs[output];//_gptrs全部初始化为0
 
       p = _out_req[output].begin( );
       while( ( p != _out_req[output].end( ) ) &&

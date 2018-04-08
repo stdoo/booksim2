@@ -20,7 +20,7 @@ FLEX_TARGET(MyScanner ${CMAKE_CURRENT_SOURCE_DIR}/src/config.l ${CMAKE_CURRENT_S
 ADD_FLEX_BISON_DEPENDENCY(MyScanner MyPaser)
 
 #source files
-file(GLOB source_files "src/*.cpp" "src/*/*.cpp")
+file(GLOB source_files "src/*.cpp" "src/*/*.cpp" "src/*.hpp" "src/*/*.hpp")
 set(SOURCE_FILES
         ${source_files}
         )

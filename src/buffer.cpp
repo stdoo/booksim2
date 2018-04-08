@@ -36,7 +36,6 @@ Buffer::Buffer( const Configuration& config, int outputs,
 Module( parent, name ), _occupancy(0)
 {
   int num_vcs = config.GetInt( "num_vcs" );
-
   _size = config.GetInt("buf_size");
   if(_size < 0) {
     _size = num_vcs * config.GetInt( "vc_buf_size" );

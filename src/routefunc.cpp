@@ -1911,49 +1911,154 @@ void chaos_mesh( const Router *r, const Flit *f,
     outputs->AddRange( 2*gN, 0, 0 ); 
   }
 }
+//vcEnd为gNumVCs-1，因为gNumVCs为配置文件里面的vc数，不参与路由分配
+// =================odd-even routing==============================
+void oddeven_mesh(const Router *r, const Flit *f, int in_channel, OutputSet *outputs, bool inject) {
+    int vcBegin = 0, vcEnd = gNumVCs-1;
+    if ( f->type == Flit::READ_REQUEST ) {
+        vcBegin = gReadReqBeginVC;
+        vcEnd = gReadReqEndVC;
+    } else if ( f->type == Flit::WRITE_REQUEST ) {
+        vcBegin = gWriteReqBeginVC;
+        vcEnd = gWriteReqEndVC;
+    } else if ( f->type ==  Flit::READ_REPLY ) {
+        vcBegin = gReadReplyBeginVC;
+        vcEnd = gReadReplyEndVC;
+    } else if ( f->type ==  Flit::WRITE_REPLY ) {
+        vcBegin = gWriteReplyBeginVC;
+        vcEnd = gWriteReplyEndVC;
+    }
+    assert(((f->vc >= vcBegin) && (f->vc <= vcEnd)) || (inject && (f->vc < 0)));
 
+    outputs->Clear( );
+
+    if(inject) {
+        // injection can use all VCs
+        outputs->AddRange(-1, vcBegin, vcEnd);
+        return;
+    } else if(r->GetID() == f->dest) {
+        // ejection can also use all VCs
+        outputs->AddRange(2*gN, vcBegin, vcEnd);
+        return;
+    }
+
+    int in_vc;
+
+    if ( in_channel == 2*gN ) {//in_channel表示信道的sink端口，sink端口为4暗示信道为inject
+        in_vc = vcEnd; // ignore the injection VC
+    } else {
+        in_vc = f->vc;
+    }
+
+    // DOR for the escape channel (VC 0), low priority
+    int out_port = dor_next_mesh( r->GetID( ), f->dest );
+    outputs->AddRange( out_port, 0, vcBegin, vcBegin );
+
+    if ( f->watch ) {
+        *gWatchOut << GetSimTime() << " | " << r->FullName() << " | "
+                   << "Adding VC range ["
+                   << vcBegin << ","
+                   << vcBegin << "]"
+                   << " at output port " << out_port
+                   << " for flit " << f->id
+                   << " (input port " << in_channel
+                   << ", destination " << f->dest << ")"
+                   << "." << endl;
+    }
+
+    if ( in_vc != vcBegin ) { // If not in the escape VC
+        // Minimal adaptive for all other channels
+        int cur = r->GetID( );
+        int dest = f->dest;
+        int cur_col = cur % gK;
+        int dest_col = dest % gK;
+        int cur_row = cur / gK;
+        int dest_row = dest / gK;
+        if (cur_col % 2 == 1) {
+            if (cur_col > dest_col) {
+                outputs->AddRange(1, vcBegin + 1, vcEnd, 1);
+            } else if (cur_col == dest_col) {
+                if (cur_row > dest_row)
+                    outputs->AddRange(3, vcBegin + 1, vcEnd, 1);
+                else
+                    outputs->AddRange(2, vcBegin + 1, vcEnd, 1);
+            } else {
+                if (cur_row > dest_row) {
+                    outputs->AddRange(3, vcBegin + 1, vcEnd, 1);
+                    outputs->AddRange(0, vcBegin + 1, vcEnd, 1);
+                } else if (cur_row < dest_row){
+                    outputs->AddRange(2, vcBegin + 1, vcEnd, 1);
+                    outputs->AddRange(0, vcBegin + 1, vcEnd, 1);
+                } else
+                    outputs->AddRange(0, vcBegin + 1, vcEnd, 1);
+            }
+        } else {
+            if (cur_col < dest_col) {
+                if (cur_row > dest_row)
+                    outputs->AddRange(3, vcBegin + 1, vcEnd, 1);
+                else if (cur_row == dest_row)
+                    outputs->AddRange(0, vcBegin + 1, vcEnd, 1);
+                else
+                    outputs->AddRange(2, vcBegin + 1, vcEnd, 1);
+            }else if (cur_col == dest_col) {
+                if (cur_row > dest_row)
+                    outputs->AddRange(3, vcBegin + 1, vcEnd, 1);
+                else
+                    outputs->AddRange(2, vcBegin + 1, vcEnd, 1);
+            } else {
+                if (cur_row > dest_row) {
+                    outputs->AddRange(3, vcBegin + 1, vcEnd, 1);
+                    outputs->AddRange(1, vcBegin + 1, vcEnd, 1);
+                } else if (cur_row < dest_row) {
+                    outputs->AddRange(2, vcBegin + 1, vcEnd, 1);
+                    outputs->AddRange(1, vcBegin + 1, vcEnd, 1);
+                }else
+                    outputs->AddRange(1, vcBegin + 1, vcEnd, 1);
+            }
+        }
+    }
+}
 //=============================================================
 
-void InitializeRoutingMap( const Configuration & config )
-{
+void InitializeRoutingMap( const Configuration & config ) {
 
-  gNumVCs = config.GetInt( "num_vcs" );
+    gNumVCs = config.GetInt("num_vcs");
 
-  //
-  // traffic class partitions
-  //
-  gReadReqBeginVC    = config.GetInt("read_request_begin_vc");
-  if(gReadReqBeginVC < 0) {
-    gReadReqBeginVC = 0;
-  }
-  gReadReqEndVC      = config.GetInt("read_request_end_vc");
-  if(gReadReqEndVC < 0) {
-    gReadReqEndVC = gNumVCs / 2 - 1;
-  }
-  gWriteReqBeginVC   = config.GetInt("write_request_begin_vc");
-  if(gWriteReqBeginVC < 0) {
-    gWriteReqBeginVC = 0;
-  }
-  gWriteReqEndVC     = config.GetInt("write_request_end_vc");
-  if(gWriteReqEndVC < 0) {
-    gWriteReqEndVC = gNumVCs / 2 - 1;
-  }
-  gReadReplyBeginVC  = config.GetInt("read_reply_begin_vc");
-  if(gReadReplyBeginVC < 0) {
-    gReadReplyBeginVC = gNumVCs / 2;
-  }
-  gReadReplyEndVC    = config.GetInt("read_reply_end_vc");
-  if(gReadReplyEndVC < 0) {
-    gReadReplyEndVC = gNumVCs - 1;
-  }
-  gWriteReplyBeginVC = config.GetInt("write_reply_begin_vc");
-  if(gWriteReplyBeginVC < 0) {
-    gWriteReplyBeginVC = gNumVCs / 2;
-  }
-  gWriteReplyEndVC   = config.GetInt("write_reply_end_vc");
-  if(gWriteReplyEndVC < 0) {
-    gWriteReplyEndVC = gNumVCs - 1;
-  }
+    //
+    // traffic class partitions
+    //每条物理信道的所有虚拟信道分为两等份，前一部分用于传送request，后一部分用于传送reply
+    gReadReqBeginVC = config.GetInt("read_request_begin_vc");
+    if (gReadReqBeginVC < 0) {
+        gReadReqBeginVC = 0;
+    }
+    gReadReqEndVC = config.GetInt("read_request_end_vc");
+    if (gReadReqEndVC < 0) {
+        gReadReqEndVC = gNumVCs / 2 - 1;
+    }
+    gWriteReqBeginVC = config.GetInt("write_request_begin_vc");
+    if (gWriteReqBeginVC < 0) {
+        gWriteReqBeginVC = 0;
+    }
+    gWriteReqEndVC = config.GetInt("write_request_end_vc");
+    if (gWriteReqEndVC < 0) {
+        gWriteReqEndVC = gNumVCs / 2 - 1;
+    }
+    gReadReplyBeginVC = config.GetInt("read_reply_begin_vc");
+    if (gReadReplyBeginVC < 0) {
+        gReadReplyBeginVC = gNumVCs / 2;
+    }
+    gReadReplyEndVC = config.GetInt("read_reply_end_vc");
+    if (gReadReplyEndVC < 0) {
+        gReadReplyEndVC = gNumVCs - 1;
+    }
+    gWriteReplyBeginVC = config.GetInt("write_reply_begin_vc");
+    if (gWriteReplyBeginVC < 0) {
+        gWriteReplyBeginVC = gNumVCs / 2;
+    }
+    gWriteReplyEndVC = config.GetInt("write_reply_end_vc");
+    if (gWriteReplyEndVC < 0) {
+        gWriteReplyEndVC = gNumVCs - 1;
+    }
 
   /* Register routing functions here */
 
@@ -1967,6 +2072,8 @@ void InitializeRoutingMap( const Configuration & config )
   gRoutingFunctionMap["dor_mesh"]            = &dim_order_mesh;
   gRoutingFunctionMap["xy_yx_mesh"]          = &xy_yx_mesh;
   gRoutingFunctionMap["adaptive_xy_yx_mesh"]          = &adaptive_xy_yx_mesh;
+  gRoutingFunctionMap["oddeven_mesh"]            = &oddeven_mesh;
+
   // End Balfour-Schultz
   // ===================================================
 

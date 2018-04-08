@@ -788,7 +788,7 @@ void TrafficManager::_GeneratePacket( int source, int stype,
     assert(stype!=0);
 
     Flit::FlitType packet_type = Flit::ANY_TYPE;
-    int size = _GetNextPacketSize(cl); //input size 
+    int size = _GetNextPacketSize(cl); //size为每个packet的flit数
     int pid = _cur_pid++;
     assert(_cur_pid);
     int packet_destination = _traffic_pattern[cl]->dest(source);
@@ -854,7 +854,7 @@ void TrafficManager::_GeneratePacket( int source, int stype,
   
     for ( int i = 0; i < size; ++i ) {
         Flit * f  = Flit::New();
-        f->id     = _cur_id++;
+        f->id     = _cur_id++;//_cur_id是根据flit产生的顺序给每个flit的编号
         assert(_cur_id);
         f->pid    = pid;
         f->watch  = watch | (gWatchOut && (_flits_to_watch.count(f->id) > 0));
@@ -864,7 +864,7 @@ void TrafficManager::_GeneratePacket( int source, int stype,
         f->record = record;
         f->cl     = cl;
 
-        _total_in_flight_flits[f->cl].insert(make_pair(f->id, f));
+        _total_in_flight_flits[f->cl].insert(make_pair(f->id, f));//只要通过generate产生了flit，就要加入到_total_in_flight_flits里面
         if(record) {
             _measured_in_flight_flits[f->cl].insert(make_pair(f->id, f));
         }
@@ -966,7 +966,7 @@ void TrafficManager::_Step( )
   
     for ( int subnet = 0; subnet < _subnets; ++subnet ) {
         for ( int n = 0; n < _nodes; ++n ) {
-            Flit * const f = _net[subnet]->ReadFlit( n );
+            Flit * const f = _net[subnet]->ReadFlit( n );//该节点eject信道的_output flit
             if ( f ) {
                 if(f->watch) {
                     *gWatchOut << GetSimTime() << " | "
@@ -976,7 +976,7 @@ void TrafficManager::_Step( )
                                << " from VC " << f->vc
                                << "." << endl;
                 }
-                flits[subnet].insert(make_pair(n, f));
+                flits[subnet].insert(make_pair(n, f));//flits里面保存eject信道的_output flit
                 if((_sim_state == warming_up) || (_sim_state == running)) {
                     ++_accepted_flits[f->cl][n];
                     if(f->tail) {
@@ -985,7 +985,7 @@ void TrafficManager::_Step( )
                 }
             }
 
-            Credit * const c = _net[subnet]->ReadCredit( n );
+            Credit * const c = _net[subnet]->ReadCredit( n );//该节点inject_cred信道的_output flit
             if ( c ) {
 #ifdef TRACK_FLOWS
                 for(set<int>::const_iterator iter = c->vc.begin(); iter != c->vc.end(); ++iter) {
@@ -1001,11 +1001,11 @@ void TrafficManager::_Step( )
                 c->Free();
             }
         }
-        _net[subnet]->ReadInputs( );
+        _net[subnet]->ReadInputs( );//writeflit将flit给对应信道的_input，readinputs将时间和对应的_input放到对应信道的_wait_queue;遍历路由器_input_channels，若有_output不为空，将_output入队_in_queue_flits,并修改路由器active参数
     }
   
     if ( !_empty_network ) {
-        _Inject();
+        _Inject();//产生packet
     }
 
     for(int subnet = 0; subnet < _subnets; ++subnet) {
@@ -1058,7 +1058,7 @@ void TrafficManager::_Step( )
                 if(cf->head && cf->vc == -1) { // Find first available VC
 	  
                     OutputSet route_set;
-                    _rf(NULL, cf, -1, &route_set, true);
+                    _rf(NULL, cf, -1, &route_set, true);//通过路由算法将包注入路由器，注入操作得到的输出端口为-1
                     set<OutputSet::sSetElement> const & os = route_set.GetSet();
                     assert(os.size() == 1);
                     OutputSet::sSetElement const & se = *os.begin();
@@ -1101,7 +1101,7 @@ void TrafficManager::_Step( )
                                    << "Finding output VC for flit " << cf->id
                                    << ":" << endl;
                     }
-                    for(int i = 1; i <= vc_count; ++i) {
+                    for(int i = 1; i <= vc_count; ++i) {//求出可用的vc
                         int const lvc = _last_vc[n][subnet][c];
                         int const vc =
                             (lvc < vc_start || lvc > vc_end) ?
@@ -1138,7 +1138,7 @@ void TrafficManager::_Step( )
                                    << "." << endl;
                     }
                 } else {
-                    if(dest_buf->IsFullFor(cf->vc)) {
+                    if(dest_buf->IsFullFor(cf->vc)) {//IsFullFor返回_vc_occupancy[vc]>vc_buf_size的值
                         if(cf->watch) {
                             *gWatchOut << GetSimTime() << " | " << FullName() << " | "
                                        << "Selected output VC " << cf->vc
@@ -1182,7 +1182,7 @@ void TrafficManager::_Step( )
                         f->la_route_set.Clear();
                     }
 
-                    dest_buf->TakeBuffer(f->vc);
+                    dest_buf->TakeBuffer(f->vc);//++_in_use_by[vc]
                     _last_vc[n][subnet][c] = f->vc;
                 }
 	
@@ -1195,7 +1195,7 @@ void TrafficManager::_Step( )
                 _outstanding_classes[n][subnet][f->vc].push(c);
 #endif
 
-                dest_buf->SendingFlit(f);
+                dest_buf->SendingFlit(f);//dest_buf为该节点的inject信道缓存状态，dest_buf调用sendingFlit修改其_occupancy _vc_occupancy[vc] _last_id等状态。逻辑上相当于inject信道缓存了该flit
 	
                 if(_pri_type == network_age_based) {
                     f->pri = numeric_limits<int>::max() - _time;
@@ -1211,18 +1211,18 @@ void TrafficManager::_Step( )
                                << " with priority " << f->pri
                                << "." << endl;
                 }
-                f->itime = _time;
+                f->itime = _time;//flit注入时间为0
 
-                // Pass VC "back"
+                // nf表示下一个flit，这里将当前flit的vc传给下一个flit
                 if(!_partial_packets[n][c].empty() && !f->tail) {
                     Flit * const nf = _partial_packets[n][c].front();
                     nf->vc = f->vc;
                 }
 	
                 if((_sim_state == warming_up) || (_sim_state == running)) {
-                    ++_sent_flits[c][n];
+                    ++_sent_flits[c][n];//_sent_flits记录从第n个节点发送的flits数
                     if(f->head) {
-                        ++_sent_packets[c][n];
+                        ++_sent_packets[c][n];//_sent_packets记录从第n个节点发送的packets数
                     }
                 }
 	
@@ -1230,7 +1230,7 @@ void TrafficManager::_Step( )
                 ++_injected_flits[c][n];
 #endif
 	
-                _net[subnet]->WriteFlit(f, n);
+                _net[subnet]->WriteFlit(f, n);//将该节点inject信道状态变为active，并将flit赋给inject信道的_input
 	
             }
         }
@@ -1261,12 +1261,12 @@ void TrafficManager::_Step( )
                 _RetireFlit(f, n);
             }
         }
-        flits[subnet].clear();
-        _net[subnet]->Evaluate( );
-        _net[subnet]->WriteOutputs( );
+        flits[subnet].clear();//clear函数将map清空
+        _net[subnet]->Evaluate( );//信道的Evaluate函数体为空，路由器的Evalute函数只有在其_avtive参数为true时才执行对应操作
+        _net[subnet]->WriteOutputs( );//如果信道的等待队列wait_queue不为空，就把wait_queue里面的第一个元素写入信道的_output;对于路由器，如果output_buffer不为空，就把第一个元素写入对应的output信道的_input；如果credit_buffer不为空，就把其写入对应的input_cred信道的_input
     }
 
-    ++_time;
+    ++_time;//每个sample周期_time的值会加1
     assert(_time);
     if(gTrace){
         cout<<"TIME "<<_time<<endl;

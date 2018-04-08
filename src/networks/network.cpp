@@ -145,7 +145,7 @@ void Network::_Alloc( )
     ostringstream name;
     name << Name() << "_fchan_ingress" << s;
     _inject[s] = new FlitChannel(this, name.str(), _classes);
-    _inject[s]->SetSource(NULL, s);
+    _inject[s]->SetSource(NULL, s);//inject是PE注入网络流量所使用的信道，所以inject信道的source为PE，不是路由器。source端口为PE端口，PE端口就是PE id
     _timed_modules.push_back(_inject[s]);
     name.str("");
     name << Name() << "_cchan_ingress" << s;
@@ -158,7 +158,7 @@ void Network::_Alloc( )
     ostringstream name;
     name << Name() << "_fchan_egress" << d;
     _eject[d] = new FlitChannel(this, name.str(), _classes);
-    _eject[d]->SetSink(NULL, d);
+    _eject[d]->SetSink(NULL, d);//eject是router到PE使用的信道，所以eject信道的sink是PE，sink端口为PE端口。
     _timed_modules.push_back(_eject[d]);
     name.str("");
     name << Name() << "_cchan_egress" << d;
