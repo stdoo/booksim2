@@ -1040,6 +1040,19 @@ void TrafficManager::_Step( )
                 list<Flit *> const & pp = _partial_packets[n][c];
 
                 if(pp.empty()) {
+//dest_buf状态改变有三个契机，一是持续时间，如idle变sleeping，wakingup变active；二是flit过来，如sleeping变wakingup，idle变active；三是buffer为空，且最后是tail flit离开，如active转idle。
+                    if (dest_buf->GetState() == dest_buf->idle) {
+                        dest_buf->AddidleTime();
+                        if (dest_buf->GetIdleTime() >= dest_buf->GetIdleTimeout()) {
+                            dest_buf->SetState(dest_buf->sleeping);
+                        }
+                    }
+                    if (dest_buf->GetState() == dest_buf->wakingup) {
+                        dest_buf->AddWakingTime();
+                        if (dest_buf->GetWakingTime() >= dest_buf->GetWakingTimeout()) {
+                            dest_buf->SetState(dest_buf->active);
+                        }
+                    }
                     continue;
                 }
 
@@ -1056,20 +1069,20 @@ void TrafficManager::_Step( )
                 }
 
                 if(cf->head && cf->vc == -1) { // Find first available VC
-	  
+
                     OutputSet route_set;
                     _rf(NULL, cf, -1, &route_set, true);//通过路由算法将包注入路由器，注入操作得到的输出端口为-1
-                    set<OutputSet::sSetElement> const & os = route_set.GetSet();
+                    set<OutputSet::sSetElement> const &os = route_set.GetSet();
                     assert(os.size() == 1);
-                    OutputSet::sSetElement const & se = *os.begin();
+                    OutputSet::sSetElement const &se = *os.begin();
                     assert(se.output_port == -1);
                     int vc_start = se.vc_start;
                     int vc_end = se.vc_end;
                     int vc_count = vc_end - vc_start + 1;
-                    if(_noq) {
+                    if (_noq) {
                         assert(_lookahead_routing);
-                        const FlitChannel * inject = _net[subnet]->GetInject(n);
-                        const Router * router = inject->GetSink();
+                        const FlitChannel *inject = _net[subnet]->GetInject(n);
+                        const Router *router = inject->GetSink();
                         assert(router);
                         int in_channel = inject->GetSinkPort();
 
@@ -1080,7 +1093,7 @@ void TrafficManager::_Step( )
                         _rf(router, cf, in_channel, &cf->la_route_set, false);
                         cf->vc = -1;
 
-                        if(cf->watch) {
+                        if (cf->watch) {
                             *gWatchOut << GetSimTime() << " | "
                                        << "node" << n << " | "
                                        << "Generating lookahead routing info for flit " << cf->id
@@ -1096,39 +1109,54 @@ void TrafficManager::_Step( )
                         assert(vc_end >= se.vc_start && vc_end <= se.vc_end);
                         assert(vc_start <= vc_end);
                     }
-                    if(cf->watch) {
+                    if (cf->watch) {
                         *gWatchOut << GetSimTime() << " | " << FullName() << " | "
                                    << "Finding output VC for flit " << cf->id
                                    << ":" << endl;
                     }
-                    for(int i = 1; i <= vc_count; ++i) {//求出可用的vc
-                        int const lvc = _last_vc[n][subnet][c];
-                        int const vc =
-                            (lvc < vc_start || lvc > vc_end) ?
-                            vc_start :
-                            (vc_start + (lvc - vc_start + i) % vc_count);
-                        assert((vc >= vc_start) && (vc <= vc_end));
-                        if(!dest_buf->IsAvailableFor(vc)) {
-                            if(cf->watch) {
-                                *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                           << "  Output VC " << vc << " is busy." << endl;
+
+                        for (int i = 1; i <= vc_count; ++i) {//求出可用的vc
+                            int const lvc = _last_vc[n][subnet][c];
+                            int vc =
+                                    (lvc < vc_start || lvc > vc_end) ?
+                                    vc_start :
+                                    (vc_start + (lvc - vc_start + i) % vc_count);
+                            assert((vc >= vc_start) && (vc <= vc_end));
+//head flit过来，dest_buf状态会有变化；根据不同的状态，会选择不同的vc
+                            if (dest_buf->GetState() == dest_buf->idle) {
+                                dest_buf->SetState(dest_buf->active);
                             }
-                        } else {
-                            if(dest_buf->IsFullFor(vc)) {
-                                if(cf->watch) {
+                            if (dest_buf->GetState() == dest_buf->sleeping) {
+                                dest_buf->SetState(dest_buf->wakingup);
+                                vc = dest_buf->GetDB();
+                            }
+                            if (dest_buf->GetState() == dest_buf->wakingup) {
+                                dest_buf->AddWakingTime();
+                                if (dest_buf->GetWakingTime() >= dest_buf->GetWakingTimeout())
+                                    dest_buf->SetState(dest_buf->active);
+                                vc = dest_buf->GetDB();
+                            }
+                            if (!dest_buf->IsAvailableFor(vc)) {
+                                if (cf->watch) {
                                     *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                               << "  Output VC " << vc << " is full." << endl;
+                                               << "  Output VC " << vc << " is busy." << endl;
                                 }
                             } else {
-                                if(cf->watch) {
-                                    *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                               << "  Selected output VC " << vc << "." << endl;
+                                if (dest_buf->IsFullFor(vc)) {
+                                    if (cf->watch) {
+                                        *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                                   << "  Output VC " << vc << " is full." << endl;
+                                    }
+                                } else {
+                                    if (cf->watch) {
+                                        *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                                   << "  Selected output VC " << vc << "." << endl;
+                                    }
+                                    cf->vc = vc;
+                                    break;
                                 }
-                                cf->vc = vc;
-                                break;
                             }
                         }
-                    }
                 }
 	
                 if(cf->vc == -1) {
@@ -1196,7 +1224,8 @@ void TrafficManager::_Step( )
 #endif
 
                 dest_buf->SendingFlit(f);//dest_buf为该节点的inject信道缓存状态，dest_buf调用sendingFlit修改其_occupancy _vc_occupancy[vc] _last_id等状态。逻辑上相当于inject信道缓存了该flit
-	
+//如果发送的是tail flit，且发送之后dest_buf为空，修改dest_buf状态
+                if(dest_buf->)
                 if(_pri_type == network_age_based) {
                     f->pri = numeric_limits<int>::max() - _time;
                     assert(f->pri >= 0);

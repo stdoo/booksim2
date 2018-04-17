@@ -90,6 +90,7 @@ BufferState::PrivateBufferPolicy::PrivateBufferPolicy(Configuration const & conf
   int const buf_size = config.GetInt("buf_size");
   if(buf_size <= 0) {
     _vc_buf_size = config.GetInt("vc_buf_size");
+    _DB_buf_size = config.GetInt("DB_buf_size");
   } else {
     _vc_buf_size = buf_size / vcs;
   }
@@ -108,7 +109,10 @@ void BufferState::PrivateBufferPolicy::SendingFlit(Flit const * const f)
 
 bool BufferState::PrivateBufferPolicy::IsFullFor(int vc) const
 {
-  return (_buffer_state->OccupancyFor(vc) >= _vc_buf_size);
+  if (vc != DB)
+    return (_buffer_state->OccupancyFor(vc) >= _vc_buf_size);
+  else
+    return (_buffer_state->OccupancyFor(DB) >= _DB_buf_size);
 }
 
 int BufferState::PrivateBufferPolicy::AvailableFor(int vc) const
@@ -537,9 +541,10 @@ void BufferState::SimpleFeedbackSharedBufferPolicy::FreeSlotFor(int vc)
 }
 
 BufferState::BufferState( const Configuration& config, Module *parent, const string& name ) : 
-  Module( parent, name ), _occupancy(0)
+  Module( parent, name ), _occupancy(0), _state(idle), _wakingup_time(0), _idle_time(0)
 {
   _vcs = config.GetInt( "num_vcs" );
+  DB = _vcs + 1;
   _size = config.GetInt("buf_size");
   if(_size < 0) {
     _size = _vcs * config.GetInt("vc_buf_size");
@@ -548,14 +553,14 @@ BufferState::BufferState( const Configuration& config, Module *parent, const str
   _buffer_policy = BufferPolicy::New(config, this, "policy");//private表示为每个VC分配独立的buffer，即vc_buf_size；share表示所有VC共享buffer，即buf_size，这样每条VC的buffer为buf_size/vc_num
 
   _wait_for_tail_credit = config.GetInt( "wait_for_tail_credit" );
+//最后的加1表示Duty buffer
+  _vc_occupancy.resize(DB, 0);//虚拟信道vc被占用的缓存数，_vc_occupancy[vc]
 
-  _vc_occupancy.resize(_vcs, 0);//虚拟信道vc被占用的缓存数，_vc_occupancy[vc]
+  _in_use_by.resize(DB, -1);//虚拟信道vc是否被使用，如果被使用，_in_use_by[vc]加1
+  _tail_sent.resize(DB, false);//tail flit是否通过vc发送？如果是，则_tail_sent[vc]变为true
 
-  _in_use_by.resize(_vcs, -1);//虚拟信道vc是否被使用，如果被使用，_in_use_by[vc]加1
-  _tail_sent.resize(_vcs, false);//tail flit是否通过vc发送？如果是，则_tail_sent[vc]变为true
-
-  _last_id.resize(_vcs, -1);//记录vc最近发送的flit的ID和packet ID，分别为_last_id[vc]和_last_pid[vc]
-  _last_pid.resize(_vcs, -1);
+  _last_id.resize(DB, -1);//记录vc最近发送的flit的ID和packet ID，分别为_last_id[vc]和_last_pid[vc]
+  _last_pid.resize(DB, -1);
 
 #ifdef TRACK_BUFFERS
   _classes = config.GetInt("classes");
