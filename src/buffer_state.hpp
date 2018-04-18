@@ -59,6 +59,7 @@ class BufferState : public Module {
   class PrivateBufferPolicy : public BufferPolicy {
   protected:
     int _vc_buf_size;
+    int _DB_buf_size;
   public:
     PrivateBufferPolicy(Configuration const & config, BufferState * parent, 
 			const string & name);
@@ -161,7 +162,20 @@ class BufferState : public Module {
   int  _occupancy;
   vector<int> _vc_occupancy;
   int  _vcs;
-  
+
+//增加变量DB，其值为_vcs + 1
+  static int DB;
+
+//buffer 状态
+  enum _states{idle, active, sleeping, wakingup};
+  _states _state;
+
+//持续时间
+  int _wakingup_time;
+  int _idle_time;
+  int const WAKINGUP = 10;
+  int const IDLEDETECT = 10;
+
   BufferPolicy * _buffer_policy;
   
   vector<int> _in_use_by;
@@ -225,7 +239,47 @@ public:
     assert((vc >= 0) && (vc < _vcs));
     return _vc_occupancy[vc];
   }
-  
+
+//buffer state get&set
+  inline _states GetState() {
+        return _state;
+    }
+  inline void SetState(_states s) {
+        _state = s;
+  }
+//DB get&set
+    inline int GetDB() {
+        return DB;
+    }
+    inline void SetDB(int dutybuffersize) {
+        DB = dutybuffersize;
+    }
+//waking time
+    inline const int GetWakingTimeout() {
+        return WAKINGUP;
+    }
+    inline int GetWakingTime() {
+        return _wakingup_time;
+    }
+    inline void SetWakingTime(int wakingtime) {
+        _wakingup_time = wakingtime;
+    }
+    inline void AddWakingTime() {
+        ++ _wakingup_time;
+    }
+//idle time
+    inline const int GetIdleTimeout() {
+        return IDLEDETECT;
+    }
+    inline int GetIdleTime() {
+        return _idle_time;
+    }
+    inline void SetidleTime(int idletime) {
+        _idle_time = idletime;
+    }
+    inline void AddidleTime() {
+        ++ _idle_time;
+    }
 #ifdef TRACK_BUFFERS
   inline int OccupancyForClass(int c) const {
     assert((c >= 0) && (c < _classes));

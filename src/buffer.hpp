@@ -148,6 +148,22 @@ public:
     return _vc[vc]->GetOccupancy( );
   }
 
+//将当前buffer转换为上一个节点的dest buffer
+  inline int CurToDest(int cur, int node) {
+      switch (cur){
+        case 0:
+          return 1;
+        case 1:
+          return 0;
+        case 2:
+          return 3;
+        case 3:
+          return 2;
+        case 4:
+          return node;
+      }
+    }
+
 #ifdef TRACK_BUFFERS
   inline int GetOccupancyForClass(int c) const
   {
