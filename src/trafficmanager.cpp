@@ -1001,7 +1001,7 @@ void TrafficManager::_Step( )
                 c->Free();
             }
         }
-        _net[subnet]->ReadInputs( );//writeflit将flit给对应信道的_input，readinputs将时间和对应的_input放到对应信道的_wait_queue;遍历路由器_input_channels，若有_output不为空，将_output入队_in_queue_flits,并修改路由器active参数
+        _net[subnet]->ReadInputs( );//1.信道执行ReadInputs，将信道_input数据读入到信道_wait_queue，同时指定出队时间；2.路由器遍历自己的输入信道，将输入信道的_output读入_in_queue_flits，并修改_active为true
     }
   
     if ( !_empty_network ) {
@@ -1058,7 +1058,7 @@ void TrafficManager::_Step( )
                 if(cf->head && cf->vc == -1) { // Find first available VC
 	  
                     OutputSet route_set;
-                    _rf(NULL, cf, -1, &route_set, true);//通过路由算法将包注入路由器，注入操作得到的输出端口为-1
+                    _rf(NULL, cf, -1, &route_set, true);//通过路由算法将包注入路由器，注入操作得到的输出端口为-1；这里只是更新了变量route_set，并没有更新flit的la_route_set
                     set<OutputSet::sSetElement> const & os = route_set.GetSet();
                     assert(os.size() == 1);
                     OutputSet::sSetElement const & se = *os.begin();
@@ -1230,8 +1230,7 @@ void TrafficManager::_Step( )
                 ++_injected_flits[c][n];
 #endif
 	
-                _net[subnet]->WriteFlit(f, n);//将该节点inject信道状态变为active，并将flit赋给inject信道的_input
-	
+                _net[subnet]->WriteFlit(f, n);//WriteFlit函数把flit写入节点inject信道的_input并++active
             }
         }
     }
@@ -1262,7 +1261,7 @@ void TrafficManager::_Step( )
             }
         }
         flits[subnet].clear();//clear函数将map清空
-        _net[subnet]->Evaluate( );//信道的Evaluate函数体为空，路由器的Evalute函数只有在其_avtive参数为true时才执行对应操作
+        _net[subnet]->Evaluate( );//1.信道的Evaluate函数体为空；2.路由器的Evalute函数只有在其_avtive参数为true时才执行对应操作
         _net[subnet]->WriteOutputs( );//如果信道的等待队列wait_queue不为空，就把wait_queue里面的第一个元素写入信道的_output;对于路由器，如果output_buffer不为空，就把第一个元素写入对应的output信道的_input；如果credit_buffer不为空，就把其写入对应的input_cred信道的_input
     }
 

@@ -84,7 +84,7 @@ BookSimConfig::BookSimConfig( )
 
   _int_map["output_delay"] = 0;
   _int_map["credit_delay"] = 0;
-  _float_map["internal_speedup"] = 1.0;
+  _float_map["internal_speedup"] = 1.0;//决定路由器是否可以执行内部流水线
 
   //with switch speedup flits requires otuput buffering
   //full output buffer will cancel switch allocation requests
@@ -132,7 +132,7 @@ BookSimConfig::BookSimConfig( )
   _int_map["input_speedup"]     = 1;  // expansion of input ports into crossbar
   _int_map["output_speedup"]    = 1;  // expansion of output ports into crossbar
 
-  _int_map["routing_delay"]    = 0;  //如果路由延迟为0，表明是前瞻路由
+  _int_map["routing_delay"]    = 1;  //如果路由延迟为0，表明是前瞻路由
   _int_map["vc_alloc_delay"]   = 1;  
   _int_map["sw_alloc_delay"]   = 1;  
   _int_map["st_prepare_delay"] = 0;//路由器流水线一般分为4个stage，分别为RC 路由计算、VA 虚拟信道分配、SA switch分配和ST switch travel。其中ST延迟为st_prepare_delay + st_final_delay。这四个延迟刚好描述了一个完整的路由流水线延迟。

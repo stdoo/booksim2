@@ -223,6 +223,12 @@ void IQRouter::ReadInputs( )
   _active = _active || have_flits || have_credits;
 }
 
+//_internalStep实际上包含了路由器整个流水线的执行过程，包括RC、VA、SA和ST四级，分别对应_RouteUpdate、_VCAllocUpdate、_SWAllocUpdate和_SwitchUpdate。从_RouteUpdate开始，每个周期按顺序执行一级流水线。
+// 一般在上一级流水线会初始化一个下一级流水线的标志以进行衔接，比如在_RouteUpdate中初始化_vc_alloc_vcs，在_VCAllocUpdate中初始化_sw_alloc_vcs, 在_SWAllocUpdate中初始化_crossbar_flits。
+//每级流水线执行之前都会执行一个对应的evaluate函数进行评估，evaluate会修改上一级留下的标志，获得当前流水线级的准确执行时间。
+//flit在_InputQueuing进入vc buffer后，_bufferMonitor ++writes[input]；而flit在_SWAllocUpdate离开vc buffer后，_bufferMonitor ++reads[input]。所以当writes[input]=reads[input]时，端口input是处于idel状态的。
+//vc初始状态为idle，在_InputQueuing中有flit进来后状态变为VC::Routing；经过_RouteUpdate完成RC后，状态变为VC::Alloc；执行_VCAllocUpdate后，状态变为active；在_SWAllocUpdate中，如果flit离开后vc buffer为空，并且离开的是tail flit，将vc状态变为idle，否则保持active；_SwitchUpdate不改变vc状态。
+
 void IQRouter::_InternalStep( )
 {
   if(!_active) {
@@ -233,7 +239,7 @@ void IQRouter::_InternalStep( )
   bool activity = !_proc_credits.empty();
 
   if(!_route_vcs.empty())
-    _RouteEvaluate( );
+    _RouteEvaluate( );//assert判断路由是否可行
   if(_vc_allocator) {
     _vc_allocator->Clear();//清除_in_req _out_req _in_occ _out_occ和_in_match _out_match
     if(!_vc_alloc_vcs.empty())
@@ -350,9 +356,8 @@ void IQRouter::_InputQueuing( )//flit流通：_input -> _wait_queue -> _output -
 
     int vc = f->vc;
     assert((vc >= 0) && (vc < _vcs));
-
     Buffer * const cur_buf = _buf[input];
-
+      
     if(f->watch) {
       *gWatchOut << GetSimTime() << " | " << FullName() << " | "
 		 << "Adding flit " << f->id
@@ -393,7 +398,7 @@ void IQRouter::_InputQueuing( )//flit流通：_input -> _wait_queue -> _output -
 		     << ")." << endl;
 	}
 	cur_buf->SetRouteSet(vc, &f->la_route_set);//flit的la_route_set给到vc的_route_set
-	cur_buf->SetState(vc, VC::vc_alloc);//vc的_state设为vc_alloc
+	cur_buf->SetState(vc, VC::vc_alloc);//如果是lookahead路由，vc状态直接由idle变为vc_alloc，中间没有routing状态过渡
 	if(_speculative) {
 	  _sw_alloc_vcs.push_back(make_pair(-1, make_pair(make_pair(input, vc),
 							  -1)));
@@ -2041,7 +2046,7 @@ void IQRouter::_SWAllocUpdate( )
       if(cur_buf->Empty(vc)) {
 	if(f->tail) {
 	  cur_buf->SetState(vc, VC::idle);
-	}
+    }
       } else {
 	Flit * const nf = cur_buf->FrontFlit(vc);
 	assert(nf);
