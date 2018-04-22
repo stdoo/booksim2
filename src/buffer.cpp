@@ -38,11 +38,11 @@ Module( parent, name ), _occupancy(0)
   int num_vcs = config.GetInt( "num_vcs" );
   _size = config.GetInt("buf_size");
   if(_size < 0) {
-    _size = num_vcs * config.GetInt( "vc_buf_size" );
+    _size = (num_vcs - 1) * config.GetInt( "vc_buf_size" ) + config.GetInt("duty_buf_size");
   };
 
   _vc.resize(num_vcs);
-
+//duty buffer也是一条vc，vc的size在dest_buf指定，不在这里。只需要指定最后一条vc为duty buffer。
   for(int i = 0; i < num_vcs; ++i) {
     ostringstream vc_name;
     vc_name << "vc_" << i;

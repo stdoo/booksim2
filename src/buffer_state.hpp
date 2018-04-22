@@ -59,7 +59,7 @@ class BufferState : public Module {
   class PrivateBufferPolicy : public BufferPolicy {
   protected:
     int _vc_buf_size;
-    int _DB_buf_size;
+    int _duty_buf_size;
   public:
     PrivateBufferPolicy(Configuration const & config, BufferState * parent, 
 			const string & name);
@@ -163,18 +163,7 @@ class BufferState : public Module {
   vector<int> _vc_occupancy;
   int  _vcs;
 
-//增加变量DB，其值为_vcs + 1
-  static int DB;
 
-//buffer 状态
-  enum _states{idle, active, sleeping, wakingup};
-  _states _state;
-
-//持续时间
-  int _wakingup_time;
-  int _idle_time;
-  int const WAKINGUP = 10;
-  int const IDLEDETECT = 10;
 
   BufferPolicy * _buffer_policy;
   
@@ -190,6 +179,19 @@ class BufferState : public Module {
 #endif
 
 public:
+
+//_vcs包含了duty buffer，这里用DutyVC表示duty buffer，也是最后一条vc
+    static int dutyVC;
+
+//buffer 状态
+    enum _states{idle, active, sleeping, wakingup};
+    _states _state;
+
+//持续时间
+    int _wakingup_time;
+    int _idle_time;
+    int const WAKINGUP = 10;
+    int const IDLEDETECT = 10;
 
   BufferState( const Configuration& config, 
 	       Module *parent, const string& name );
@@ -248,11 +250,11 @@ public:
         _state = s;
   }
 //DB get&set
-    inline int GetDB() {
-        return DB;
+    inline int GetDutyVC() {
+        return dutyVC;
     }
-    inline void SetDB(int dutybuffersize) {
-        DB = dutybuffersize;
+    inline void SetDutyVC(int size) {
+        dutyVC = size;
     }
 //waking time
     inline const int GetWakingTimeout() {
@@ -277,7 +279,7 @@ public:
     inline void SetidleTime(int idletime) {
         _idle_time = idletime;
     }
-    inline void AddidleTime() {
+    inline void AddIdleTime() {
         ++ _idle_time;
     }
 #ifdef TRACK_BUFFERS

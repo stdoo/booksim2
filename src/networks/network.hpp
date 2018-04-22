@@ -41,6 +41,7 @@
 #include "channel.hpp"
 #include "config_utils.hpp"
 #include "globals.hpp"
+#include "trafficmanager.hpp"
 
 typedef Channel<Credit> CreditChannel;
 
@@ -91,7 +92,7 @@ public:
   virtual double Capacity( ) const;
 
   virtual void ReadInputs( );
-  virtual void Evaluate( );
+  virtual void Evaluate(int subnet, TrafficManager * trafficManager );
   virtual void WriteOutputs( );
 
   void Display( ostream & os = cout ) const;

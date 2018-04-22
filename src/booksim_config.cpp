@@ -105,7 +105,7 @@ BookSimConfig::BookSimConfig( )
   
   _int_map["num_vcs"]         = 16;  
   _int_map["vc_buf_size"]     = 8;  //per vc buffer size.要么直接给出每条物理信道的缓存buf_size，由所有虚拟信道共享。要么给出每条虚拟信道的缓存vc_buf_size
-  _int_map["DB_buf_size"]     = 2;//duty buffer size
+  _int_map["duty_buf_size"]     = 2;//duty buffer size
   _int_map["buf_size"]        = -1; //shared buffer size
   AddStrField("buffer_policy", "private"); //buffer sharing policy
 

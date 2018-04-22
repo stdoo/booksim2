@@ -114,11 +114,11 @@ class IQRouter : public Router {
   bool _ReceiveFlits( );
   bool _ReceiveCredits( );
 
-  virtual void _InternalStep( );
+  virtual void _InternalStep( int subnet, TrafficManager * trafficManager);
 
   bool _SWAllocAddReq(int input, int vc, int output);
 
-  void _InputQueuing( );
+  void _InputQueuing(int subnet, TrafficManager * trafficmanager );
 
   void _RouteEvaluate( );
   void _VCAllocEvaluate( );
@@ -129,7 +129,7 @@ class IQRouter : public Router {
   void _RouteUpdate( );
   void _VCAllocUpdate( );
   void _SWHoldUpdate( );
-  void _SWAllocUpdate( );
+  void _SWAllocUpdate(int subnet, TrafficManager * trafficmanager );
   void _SwitchUpdate( );
 
   void _OutputQueuing( );
@@ -177,6 +177,13 @@ public:
 
   SwitchMonitor const * const GetSwitchMonitor() const {return _switchMonitor;}
   BufferMonitor const * const GetBufferMonitor() const {return _bufferMonitor;}
+
+  inline void SetNextBufState(int output, BufferState::_states s){
+	  _next_buf[output]->SetState(s);
+  };
+  inline BufferState * GetNextBuf(int output){
+	  return _next_buf[output];
+  }
 
 };
 

@@ -75,6 +75,16 @@ public:
   {
     return _vc[vc]->Empty( );
   }
+//DB是一直都在运行中的，所以只要DB之前的vc都为idle，就可以power off了
+  inline bool BufferIdle() {
+    int i = 0;
+    while(GetState(i) == VC::idle){
+      ++i;
+      if(i == _vc.size() - 1)
+        return true;
+    }
+    return false;
+  }
 
   inline bool Full( ) const
   {

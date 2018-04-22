@@ -223,19 +223,57 @@ void IQRouter::ReadInputs( )
   _active = _active || have_flits || have_credits;
 }
 
-//_internalStep实际上包含了路由器整个流水线的执行过程，包括RC、VA、SA和ST四级，分别对应_RouteUpdate、_VCAllocUpdate、_SWAllocUpdate和_SwitchUpdate。从_RouteUpdate开始，每个周期按顺序执行一级流水线。
+//_internalStep实际上包含了路由器整个流水线的执行过程，包括RC、VA、SA和ST四级，分别对应_RouteUpdate、_VCAllocUpdate、_SWAllocUpdate和_SwitchUpdate。从_RouteUpdate开始，按顺序执行。
 // 一般在上一级流水线会初始化一个下一级流水线的标志以进行衔接，比如在_RouteUpdate中初始化_vc_alloc_vcs，在_VCAllocUpdate中初始化_sw_alloc_vcs, 在_SWAllocUpdate中初始化_crossbar_flits。
 //每级流水线执行之前都会执行一个对应的evaluate函数进行评估，evaluate会修改上一级留下的标志，获得当前流水线级的准确执行时间。
 //flit在_InputQueuing进入vc buffer后，_bufferMonitor ++writes[input]；而flit在_SWAllocUpdate离开vc buffer后，_bufferMonitor ++reads[input]。所以当writes[input]=reads[input]时，端口input是处于idel状态的。
 //vc初始状态为idle，在_InputQueuing中有flit进来后状态变为VC::Routing；经过_RouteUpdate完成RC后，状态变为VC::Alloc；执行_VCAllocUpdate后，状态变为active；在_SWAllocUpdate中，如果flit离开后vc buffer为空，并且离开的是tail flit，将vc状态变为idle，否则保持active；_SwitchUpdate不改变vc状态。
-
-void IQRouter::_InternalStep( )
+//_inputQueuing对_route_vcs、_vc_alloc_vcs和_sw_alloc_vcs三个关键变量进行了初始化，保证它们不为空；然后分别在对应的evaluate函数中进行修改，以满足update函数的执行要求；但_crossbar_flit是在_SWAllocUpdate中初始化，所以流水线最后一级_SwitchUpdate会在下一个周期执行。
+void IQRouter::_InternalStep( int subnet, TrafficManager * trafficmanager)
 {
   if(!_active) {
+//如果路由器不执行内部流水线，则其所有input端口在这个周期都不会有新来的flit需要处理，所以只需考虑持续时间的转变
+      int n = this->_id;
+      BufferState * destBuf = trafficmanager->GetDestBuf(n,subnet);
+      for (int input = 0; input < _inputs; ++input) {
+          if(input == 4){
+              if(destBuf->GetState() == BufferState::idle){
+                  destBuf->AddIdleTime();
+                  if(destBuf->GetIdleTime() >= destBuf->GetIdleTimeout()){
+                      destBuf->SetState(BufferState::sleeping);
+                  }
+              }
+              if(destBuf->GetState() == BufferState::wakingup){
+                  destBuf->AddWakingTime();
+                  if(destBuf->GetWakingTime() >= destBuf->GetWakingTimeout()){
+                      destBuf->SetState(BufferState::active);
+                  }
+              }
+          }
+          else{
+              int lastID = this->GetLastID(input);
+              int lastOutput = this->GetLastOutport(input);
+              Router* lastRouter = trafficmanager->GetRouter(lastID, subnet);
+              BufferState * nextBuf = lastRouter->GetNextBuf(lastOutput);
+              if(nextBuf->GetState() == BufferState::idle){
+                  nextBuf->AddIdleTime();
+                  if(nextBuf->GetIdleTime() >= destBuf->GetIdleTimeout()){
+                      nextBuf->SetState(BufferState::sleeping);
+                  }
+              }
+              if(nextBuf->GetState() == BufferState::wakingup){
+                  nextBuf->AddWakingTime();
+                  if(nextBuf->GetWakingTime() >= destBuf->GetWakingTimeout()){
+                      nextBuf->SetState(BufferState::active);
+                  }
+              }
+
+          }
+      }
     return;
   }
 
-  _InputQueuing( );//将_in_queue_flits给到vc的buffer
+  _InputQueuing(subnet, trafficmanager);//将_in_queue_flits给到vc的buffer
   bool activity = !_proc_credits.empty();
 
   if(!_route_vcs.empty())
@@ -272,7 +310,7 @@ void IQRouter::_InternalStep( )
     }
   }
   if(!_sw_alloc_vcs.empty()) {
-    _SWAllocUpdate( );
+    _SWAllocUpdate(subnet , trafficmanager);
     activity = activity || !_sw_alloc_vcs.empty();
   }
   if(!_crossbar_flits.empty()) {
@@ -342,15 +380,64 @@ bool IQRouter::_ReceiveCredits( )
 // input queuing
 //------------------------------------------------------------------------------
 
-void IQRouter::_InputQueuing( )//flit流通：_input -> _wait_queue -> _output -> _in_queue_flits -> cur_buf(cur_vc->buffer)
+void IQRouter::_InputQueuing(int subnet, TrafficManager * trafficmanager )//flit流通：_input -> _wait_queue -> _output -> _in_queue_flits -> cur_buf(cur_vc->buffer)
 {
-  for(map<int, Flit *>::const_iterator iter = _in_queue_flits.begin();//判断_in_queue_flits的内容是否有问题 -> 将flit添加到vc的buffer -> 判断vc的buffer里面的flit是否有问题 -> 将flit的路由信息给vc，vc的_state设为Alloc
+    vector<int> v;
+    v.resize(_inputs);
+    for (int i = 0; i < _inputs; ++i) {
+        v[i] = 0;
+    }
+    //如果路由器有某些端口执行了流水线，这些端口的状态可能会改变；但是没有执行流水线的端口状态也可能会改变
+    int n = this->_id;
+    BufferState * destBuf = trafficmanager->GetDestBuf(n,subnet);
+    for(map<int, Flit *>::const_iterator iter = _in_queue_flits.begin();iter != _in_queue_flits.end();
+        ++iter) {
+
+        int input = iter->first;
+        v[input] = 1;
+    }
+        for (int j = 0; j < _inputs; ++j) {
+            if (v[j] == 0) {
+                if (j == 4) {
+                    if (destBuf->GetState() == BufferState::idle) {
+                        destBuf->AddIdleTime();
+                        if (destBuf->GetIdleTime() >= destBuf->GetIdleTimeout()) {
+                            destBuf->SetState(BufferState::sleeping);
+                        }
+                    }
+                    if (destBuf->GetState() == BufferState::wakingup) {
+                        destBuf->AddWakingTime();
+                        if (destBuf->GetWakingTime() >= destBuf->GetWakingTimeout()) {
+                            destBuf->SetState(BufferState::active);
+                        }
+                    }
+                } else {
+                    int lastID = this->GetLastID(j);
+                    int lastOutput = this->GetLastOutport(j);
+                    Router *lastRouter = trafficmanager->GetRouter(lastID, subnet);
+                    BufferState *nextBuf = lastRouter->GetNextBuf(lastOutput);
+                    if (nextBuf->GetState() == BufferState::idle) {
+                        nextBuf->AddIdleTime();
+                        if (nextBuf->GetIdleTime() >= destBuf->GetIdleTimeout()) {
+                            nextBuf->SetState(BufferState::sleeping);
+                        }
+                    }
+                    if (nextBuf->GetState() == BufferState::wakingup) {
+                        nextBuf->AddWakingTime();
+                        if (nextBuf->GetWakingTime() >= destBuf->GetWakingTimeout()) {
+                            nextBuf->SetState(BufferState::active);
+                        }
+                    }
+                }
+            }
+        }
+
+    for(map<int, Flit *>::const_iterator iter = _in_queue_flits.begin();//判断_in_queue_flits的内容是否有问题 -> 将flit添加到vc的buffer -> 判断vc的buffer里面的flit是否有问题 -> 将flit的路由信息给vc，vc的_state设为Alloc
       iter != _in_queue_flits.end();
       ++iter) {
 
     int const input = iter->first;
     assert((input >= 0) && (input < _inputs));
-
     Flit * const f = iter->second;
     assert(f);
 
@@ -613,11 +700,10 @@ void IQRouter::_VCAllocEvaluate( )
       int const out_port = iset->output_port;
       assert((out_port >= 0) && (out_port < _outputs));
 
-      BufferState const * const dest_buf = _next_buf[out_port];
+      BufferState * dest_buf = _next_buf[out_port];
 
       int vc_start;
       int vc_end;
-      
       if(_noq && _noq_next_output_port[input][vc] >= 0) {
 	assert(!_routing_delay);
 	vc_start = _noq_next_vc_start[input][vc];
@@ -629,9 +715,24 @@ void IQRouter::_VCAllocEvaluate( )
       assert(vc_start >= 0 && vc_start < _vcs);
       assert(vc_end >= 0 && vc_end < _vcs);
       assert(vc_end >= vc_start);
-
-      for(int out_vc = vc_start; out_vc <= vc_end; ++out_vc) {
-	assert((out_vc >= 0) && (out_vc < _vcs));
+//根据dest_buf状态选择vc
+        if (dest_buf->GetState() == BufferState::idle) {
+            dest_buf->SetState(BufferState::active);
+        }
+        if (dest_buf->GetState() == BufferState::sleeping) {
+            dest_buf->SetState(BufferState::wakingup);
+            vc_start = dest_buf->GetDutyVC();
+            vc_end = vc_start;
+        }
+        if (dest_buf->GetState() == BufferState::wakingup) {
+            dest_buf->AddWakingTime();
+            if (dest_buf->GetWakingTime() >= dest_buf->GetWakingTimeout())
+                dest_buf->SetState(BufferState::active);
+            vc_start = dest_buf->GetDutyVC();
+            vc_end = vc_start;
+        }
+        for(int out_vc = vc_start; out_vc <= vc_end; ++out_vc) {
+	assert((out_vc >= 0) && (out_vc <= _vcs));
 
 	int in_priority = iset->pri;//_route_set的优先级
 	if(_vc_prioritize_empty && !dest_buf->IsEmptyFor(out_vc)) {//1.优先empty vc，值为0；2.返回_vc_occupancy[vc]==0
@@ -709,7 +810,6 @@ void IQRouter::_VCAllocEvaluate( )
     *gWatchOut << GetSimTime() << " | " << _vc_allocator->FullName() << " | ";
     _vc_allocator->PrintGrants( gWatchOut );
   }
-
   for(deque<pair<int, pair<pair<int, int>, int> > >::iterator iter = _vc_alloc_vcs.begin();
       iter != _vc_alloc_vcs.end();
       ++iter) {
@@ -1838,7 +1938,7 @@ void IQRouter::_SWAllocEvaluate( )
   }
 }
 
-void IQRouter::_SWAllocUpdate( )
+void IQRouter::_SWAllocUpdate( int subnet, TrafficManager * trafficmanager)
 {
   while(!_sw_alloc_vcs.empty()) {
 
@@ -1934,7 +2034,7 @@ void IQRouter::_SWAllocUpdate( )
 		vc_prio += numeric_limits<int>::min();
 	      }
 
-	      // FIXME: This check should probably be performed in Evaluate(), 
+	      // FIXME: This check should probably be performed in Evaluate(),
 	      // not Update(), as the latter can cause the outcome to depend on 
 	      // the order of evaluation!
 	      if(dest_buf->IsAvailableFor(out_vc) && 
@@ -2046,8 +2146,23 @@ void IQRouter::_SWAllocUpdate( )
       if(cur_buf->Empty(vc)) {
 	if(f->tail) {
 	  cur_buf->SetState(vc, VC::idle);
-    }
-      } else {
+//如果所有的vc都为idle，则cur_buf为idle；如果这个flit来自PE，修改_buf_states[n][subnet]的状态；如果来自路由器，修改上一个路由器_next_buf[output]的状态。
+//1.通过evaluate函数传递subnet和trafficmanager指针，然后修改其变量_buf_states[n][subnet]，n即为当前路由器ID。
+//2.根据input端口和当前路由器ID，可得到上一个路由器ID及output端口，然后通过trafficmanager找到上一个路由器，修改上一个路由器_next_buf[output]的状态。
+      if(cur_buf->BufferIdle()){
+          int n = this->_id;
+          if(input == 4){
+              trafficmanager->SetBufState(n, subnet, BufferState::idle);
+          }
+          else{
+              int lastID = this->GetLastID(input);
+              int lastOutput = this->GetLastOutport(input);
+              Router* lastRouter = trafficmanager->GetRouter(lastID, subnet);
+              lastRouter->SetNextBufState(lastOutput, BufferState::idle);
+          }
+      }
+        }
+    } else {
 	Flit * const nf = cur_buf->FrontFlit(vc);
 	assert(nf);
 	assert(nf->vc == vc);

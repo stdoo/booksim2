@@ -43,6 +43,7 @@
 #include "globals.hpp"
 #include "module.hpp"
 #include "timed_module.hpp"
+#include "trafficmanager.hpp"
 
 using namespace std;
 
@@ -63,7 +64,7 @@ public:
   virtual T * Receive(); 
   
   virtual void ReadInputs();
-  virtual void Evaluate() {}
+  void Evaluate(int subnet, TrafficManager * trafficManager) {}
   virtual void WriteOutputs();
 
 protected:

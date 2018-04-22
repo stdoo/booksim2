@@ -188,12 +188,12 @@ void Network::ReadInputs( )
   }
 }
 
-void Network::Evaluate( )
+void Network::Evaluate(int subnet, TrafficManager * trafficManager )
 {
   for(deque<TimedModule *>::const_iterator iter = _timed_modules.begin();
       iter != _timed_modules.end();
       ++iter) {
-    (*iter)->Evaluate( );
+    (*iter)->Evaluate(subnet, trafficManager);
   }
 }
 

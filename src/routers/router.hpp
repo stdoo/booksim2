@@ -88,7 +88,7 @@ protected:
   vector<int> _crossbar_conflict_stalls;
 #endif
 
-  virtual void _InternalStep() = 0;
+  virtual void _InternalStep(int subnet, TrafficManager* trafficmanager) = 0;
 
 public:
   Router( const Configuration& config,
@@ -112,15 +112,42 @@ public:
   }
 
   virtual void ReadInputs( ) = 0;
-  virtual void Evaluate( );
+  virtual void Evaluate( int subnet, TrafficManager* trafficmanager);
   virtual void WriteOutputs( ) = 0;
+//需要调用子类iqrouter的方法，所以这里声明虚函数，并在子类实现
+  virtual void SetNextBufState(int output, BufferState::_states s);
+  virtual BufferState * GetNextBuf(int output);
 
   void OutChannelFault( int c, bool fault = true );
   bool IsFaultyOutput( int c ) const;
 
   inline int GetID( ) const {return _id;}
-
-
+//根据路由器当前的输入端口找到上一个路由器的id，不包括PE
+  inline int GetLastID(int input){
+        switch(input){
+            case 0:
+                return this->_id + 1;
+            case 1:
+                return this->_id - 1;
+            case 2:
+                return this->_id - gK;
+            case 3:
+                return this->_id + gK;
+        }
+    }
+//根据当前输入端口找到上一个路由器的输出端口
+  inline int GetLastOutport(int input){
+        switch(input){
+            case 0:
+                return 1;
+            case 1:
+                return 0;
+            case 2:
+                return 3;
+            case 3:
+                return 2;
+        }
+    }
   virtual int GetUsedCredit(int o) const = 0;
   virtual int GetBufferOccupancy(int i) const = 0;
 

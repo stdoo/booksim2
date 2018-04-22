@@ -308,6 +308,17 @@ public:
   inline int getTime() { return _time;}
   Stats * getStats(const string & name) { return _stats[name]; }
 
+  inline void SetBufState(int n, int subnet, BufferState::_states s){
+          _buf_states[n][subnet]->SetState(s);
+  };
+
+  inline BufferState * GetDestBuf(int n, int subnet){
+      return _buf_states[n][subnet];
+  }
+
+  inline Router* GetRouter(int n, int subnet){
+          return _router[n][subnet];
+  }
 };
 
 template<class T>

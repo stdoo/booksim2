@@ -37,7 +37,7 @@ n = 2;
 routing_function = oddeven;
 
 // Flow control
-num_vcs     = 2;
+num_vcs     = 4;
 vc_buf_size = 4;
 wait_for_tail_credit = 1;
 

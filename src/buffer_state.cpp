@@ -90,7 +90,7 @@ BufferState::PrivateBufferPolicy::PrivateBufferPolicy(Configuration const & conf
   int const buf_size = config.GetInt("buf_size");
   if(buf_size <= 0) {
     _vc_buf_size = config.GetInt("vc_buf_size");
-    _DB_buf_size = config.GetInt("DB_buf_size");
+    _duty_buf_size = config.GetInt("duty_buf_size");
   } else {
     _vc_buf_size = buf_size / vcs;
   }
@@ -100,19 +100,29 @@ BufferState::PrivateBufferPolicy::PrivateBufferPolicy(Configuration const & conf
 void BufferState::PrivateBufferPolicy::SendingFlit(Flit const * const f)
 {
   int const vc = f->vc;
-  if(_buffer_state->OccupancyFor(vc) > _vc_buf_size) {
-    ostringstream err;
-    err << "Buffer overflow for VC " << vc;
-    Error(err.str());
+  if(vc != dutyVC){
+    if(_buffer_state->OccupancyFor(vc) > _vc_buf_size) {
+      ostringstream err;
+      err << "Buffer overflow for VC " << vc;
+      Error(err.str());
+    }
   }
+  else{
+    if(_buffer_state->OccupancyFor(vc) > _duty_buf_size) {
+      ostringstream err;
+      err << "Duty Buffer overflow for VC " << vc;
+      Error(err.str());
+    }
+  }
+
 }
 
 bool BufferState::PrivateBufferPolicy::IsFullFor(int vc) const
 {
-  if (vc != DB)
+  if (vc != dutyVC)
     return (_buffer_state->OccupancyFor(vc) >= _vc_buf_size);
   else
-    return (_buffer_state->OccupancyFor(DB) >= _DB_buf_size);
+    return (_buffer_state->OccupancyFor(vc) >= _duty_buf_size);
 }
 
 int BufferState::PrivateBufferPolicy::AvailableFor(int vc) const
@@ -544,23 +554,22 @@ BufferState::BufferState( const Configuration& config, Module *parent, const str
   Module( parent, name ), _occupancy(0), _state(idle), _wakingup_time(0), _idle_time(0)
 {
   _vcs = config.GetInt( "num_vcs" );
-  DB = _vcs + 1;
+  dutyVC = _vcs - 1;//dutyVC为最后一条vc
   _size = config.GetInt("buf_size");
   if(_size < 0) {
-    _size = _vcs * config.GetInt("vc_buf_size");
+    _size = (_vcs - 1) * config.GetInt("vc_buf_size") + config.GetInt("duty_buf_size");
   }
 
   _buffer_policy = BufferPolicy::New(config, this, "policy");//private表示为每个VC分配独立的buffer，即vc_buf_size；share表示所有VC共享buffer，即buf_size，这样每条VC的buffer为buf_size/vc_num
 
   _wait_for_tail_credit = config.GetInt( "wait_for_tail_credit" );
-//最后的加1表示Duty buffer
-  _vc_occupancy.resize(DB, 0);//虚拟信道vc被占用的缓存数，_vc_occupancy[vc]
+  _vc_occupancy.resize(_vcs, 0);//虚拟信道vc被占用的缓存数，_vc_occupancy[vc]
 
-  _in_use_by.resize(DB, -1);//虚拟信道vc是否被使用，如果被使用，_in_use_by[vc]加1
-  _tail_sent.resize(DB, false);//tail flit是否通过vc发送？如果是，则_tail_sent[vc]变为true
+  _in_use_by.resize(_vcs, -1);//虚拟信道vc是否被使用，如果被使用，_in_use_by[vc]加1
+  _tail_sent.resize(_vcs, false);//tail flit是否通过vc发送？如果是，则_tail_sent[vc]变为true
 
-  _last_id.resize(DB, -1);//记录vc最近发送的flit的ID和packet ID，分别为_last_id[vc]和_last_pid[vc]
-  _last_pid.resize(DB, -1);
+  _last_id.resize(_vcs, -1);//记录vc最近发送的flit的ID和packet ID，分别为_last_id[vc]和_last_pid[vc]
+  _last_pid.resize(_vcs, -1);
 
 #ifdef TRACK_BUFFERS
   _classes = config.GetInt("classes");
@@ -625,16 +634,12 @@ void BufferState::ProcessCredit( Credit const * const c )
 void BufferState::SendingFlit( Flit const * const f )
 {
   int const vc = f->vc;
-
-  assert( f && ( vc >= 0 ) && ( vc < _vcs ) );
-
-  ++_occupancy;//_occupancy表示注入的flit占用的缓存数，_size表示缓存总数
-  if(_occupancy > _size) {
-    Error("Buffer overflow.");
+    assert( f && ( vc >= 0 ) && ( vc < _vcs ) );
+    ++_occupancy;//_occupancy表示注入的flit占用的缓存数，_size表示缓存总数
+    if(_occupancy > _size) {
+      Error("Buffer overflow.");
   }
-
   ++_vc_occupancy[vc];//表示虚拟信道vc被占用的缓存数
-  
   _buffer_policy->SendingFlit(f);//判断虚拟信道vc被占用的缓存是否超过了虚拟信道的缓存
   
 #ifdef TRACK_BUFFERS

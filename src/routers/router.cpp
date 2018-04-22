@@ -102,11 +102,11 @@ void Router::AddOutputChannel( FlitChannel *channel, CreditChannel *backchannel 
   channel->SetSource( this, _output_channels.size() - 1 ) ;
 }
 
-void Router::Evaluate( )
+void Router::Evaluate(int subnet, TrafficManager* trafficManager )
 {
   _partial_internal_cycles += _internal_speedup;
   while( _partial_internal_cycles >= 1.0 ) {
-    _InternalStep( );
+    _InternalStep( subnet, trafficManager);
     _partial_internal_cycles -= 1.0;
   }
 }

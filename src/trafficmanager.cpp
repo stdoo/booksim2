@@ -1041,16 +1041,16 @@ void TrafficManager::_Step( )
 
                 if(pp.empty()) {
 //dest_buf状态改变有三个契机，一是持续时间，如idle变sleeping，wakingup变active；二是flit过来，如sleeping变wakingup，idle变active；三是buffer为空，且最后是tail flit离开，如active转idle。
-                    if (dest_buf->GetState() == dest_buf->idle) {
-                        dest_buf->AddidleTime();
+                    if (dest_buf->GetState() == BufferState::idle) {
+                        dest_buf->AddIdleTime();
                         if (dest_buf->GetIdleTime() >= dest_buf->GetIdleTimeout()) {
-                            dest_buf->SetState(dest_buf->sleeping);
+                            dest_buf->SetState(BufferState::sleeping);
                         }
                     }
-                    if (dest_buf->GetState() == dest_buf->wakingup) {
+                    if (dest_buf->GetState() == BufferState::wakingup) {
                         dest_buf->AddWakingTime();
                         if (dest_buf->GetWakingTime() >= dest_buf->GetWakingTimeout()) {
-                            dest_buf->SetState(dest_buf->active);
+                            dest_buf->SetState(BufferState::active);
                         }
                     }
                     continue;
@@ -1123,18 +1123,18 @@ void TrafficManager::_Step( )
                                     (vc_start + (lvc - vc_start + i) % vc_count);
                             assert((vc >= vc_start) && (vc <= vc_end));
 //head flit过来，dest_buf状态会有变化；根据不同的状态，会选择不同的vc
-                            if (dest_buf->GetState() == dest_buf->idle) {
-                                dest_buf->SetState(dest_buf->active);
+                            if (dest_buf->GetState() == BufferState::idle) {
+                                dest_buf->SetState(BufferState::active);
                             }
-                            if (dest_buf->GetState() == dest_buf->sleeping) {
-                                dest_buf->SetState(dest_buf->wakingup);
-                                vc = dest_buf->GetDB();
+                            if (dest_buf->GetState() == BufferState::sleeping) {
+                                dest_buf->SetState(BufferState::wakingup);
+                                vc = dest_buf->GetDutyVC();
                             }
-                            if (dest_buf->GetState() == dest_buf->wakingup) {
+                            if (dest_buf->GetState() == BufferState::wakingup) {
                                 dest_buf->AddWakingTime();
                                 if (dest_buf->GetWakingTime() >= dest_buf->GetWakingTimeout())
-                                    dest_buf->SetState(dest_buf->active);
-                                vc = dest_buf->GetDB();
+                                    dest_buf->SetState(BufferState::active);
+                                vc = dest_buf->GetDutyVC();
                             }
                             if (!dest_buf->IsAvailableFor(vc)) {
                                 if (cf->watch) {
@@ -1223,9 +1223,7 @@ void TrafficManager::_Step( )
                 _outstanding_classes[n][subnet][f->vc].push(c);
 #endif
 
-                dest_buf->SendingFlit(f);//dest_buf为该节点的inject信道缓存状态，dest_buf调用sendingFlit修改其_occupancy _vc_occupancy[vc] _last_id等状态。逻辑上相当于inject信道缓存了该flit
-//如果发送的是tail flit，且发送之后dest_buf为空，修改dest_buf状态
-                if(dest_buf->)
+                dest_buf->SendingFlit(f);//这个SendingFlit实际上是指PE发送flit。dest_buf作为路由器inject端口的缓存，修改_occupancy _vc_occupancy[vc] _last_id等变量。
                 if(_pri_type == network_age_based) {
                     f->pri = numeric_limits<int>::max() - _time;
                     assert(f->pri >= 0);
@@ -1290,7 +1288,7 @@ void TrafficManager::_Step( )
             }
         }
         flits[subnet].clear();//clear函数将map清空
-        _net[subnet]->Evaluate( );//1.信道的Evaluate函数体为空；2.路由器的Evalute函数只有在其_avtive参数为true时才执行对应操作
+        _net[subnet]->Evaluate(subnet, this );//1.信道的Evaluate函数体为空；2.路由器的Evalute函数只有在其_avtive参数为true时才执行对应操作
         _net[subnet]->WriteOutputs( );//如果信道的等待队列wait_queue不为空，就把wait_queue里面的第一个元素写入信道的_output;对于路由器，如果output_buffer不为空，就把第一个元素写入对应的output信道的_input；如果credit_buffer不为空，就把其写入对应的input_cred信道的_input
     }
 
