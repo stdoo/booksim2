@@ -263,9 +263,9 @@ bool ParseArgs(Configuration * cf, int argc, char * * argv)
 void Configuration::WriteFile(string const & filename) {
   
   ostream *config_out= new ofstream(filename.c_str());
-  
-  
-  for(map<string,string>::const_iterator i = _str_map.begin(); 
+
+
+  for(map<string,string>::const_iterator i = _str_map.begin();
       i!=_str_map.end();
       i++){
     //the parser won't read empty strings

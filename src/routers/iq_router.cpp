@@ -46,6 +46,7 @@
 #include "allocator.hpp"
 #include "switch_monitor.hpp"
 #include "buffer_monitor.hpp"
+#include "trafficmanager.hpp"
 
 IQRouter::IQRouter( Configuration const & config, Module *parent, 
 		    string const & name, int id, int inputs, int outputs )

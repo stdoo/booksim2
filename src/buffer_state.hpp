@@ -181,7 +181,7 @@ class BufferState : public Module {
 public:
 
 //_vcs包含了duty buffer，这里用DutyVC表示duty buffer，也是最后一条vc
-    static int dutyVC;
+    int dutyVC;
 
 //buffer 状态
     enum _states{idle, active, sleeping, wakingup};
@@ -250,7 +250,7 @@ public:
         _state = s;
   }
 //DB get&set
-    inline int GetDutyVC() {
+    inline int GetDutyVC() const{
         return dutyVC;
     }
     inline void SetDutyVC(int size) {

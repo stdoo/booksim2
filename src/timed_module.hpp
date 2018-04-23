@@ -29,17 +29,18 @@
 #define _TIMED_MODULE_HPP_
 
 #include "module.hpp"
-#include "trafficmanager.hpp"
+
+class TrafficManager;
 
 class TimedModule : public Module {
 
 public:
-  TimedModule(Module * parent, string const & name) : Module(parent, name) {}
-  virtual ~TimedModule() {}
-  
-  virtual void ReadInputs() = 0;
-  virtual void Evaluate(int i, TrafficManager * trafficManager){}
-  virtual void WriteOutputs() = 0;
+    TimedModule(Module * parent, string const & name) : Module(parent, name) {}
+    virtual ~TimedModule() {}
+
+    virtual void ReadInputs() = 0;
+    virtual void Evaluate(int, TrafficManager*) = 0;
+    virtual void WriteOutputs() = 0;
 };
 
 #endif

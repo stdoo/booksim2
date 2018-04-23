@@ -43,7 +43,8 @@
 #include "globals.hpp"
 #include "module.hpp"
 #include "timed_module.hpp"
-#include "trafficmanager.hpp"
+
+class TrafficManager;
 
 using namespace std;
 

@@ -37,6 +37,7 @@
 #include "flitchannel.hpp"
 #include "channel.hpp"
 #include "config_utils.hpp"
+#include "buffer_state.hpp"
 
 typedef Channel<Credit> CreditChannel;
 
@@ -115,8 +116,8 @@ public:
   virtual void Evaluate( int subnet, TrafficManager* trafficmanager);
   virtual void WriteOutputs( ) = 0;
 //需要调用子类iqrouter的方法，所以这里声明虚函数，并在子类实现
-  virtual void SetNextBufState(int output, BufferState::_states s);
-  virtual BufferState * GetNextBuf(int output);
+  virtual void SetNextBufState(int output, BufferState::_states s){}
+  virtual BufferState * GetNextBuf(int output){return 0;}
 
   void OutChannelFault( int c, bool fault = true );
   bool IsFaultyOutput( int c ) const;

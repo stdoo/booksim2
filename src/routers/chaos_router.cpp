@@ -224,7 +224,7 @@ void ChaosRouter::ReadInputs( )
   }
 }
 
-void ChaosRouter::_InternalStep( )
+void ChaosRouter::_InternalStep( int subnet, TrafficManager* trafficmanager)
 {
   _NextInterestingChannel( );
   _OutputAdvance( );

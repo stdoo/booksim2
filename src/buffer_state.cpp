@@ -100,7 +100,8 @@ BufferState::PrivateBufferPolicy::PrivateBufferPolicy(Configuration const & conf
 void BufferState::PrivateBufferPolicy::SendingFlit(Flit const * const f)
 {
   int const vc = f->vc;
-  if(vc != dutyVC){
+  int const duVC = _buffer_state->GetDutyVC();
+  if(vc != duVC){
     if(_buffer_state->OccupancyFor(vc) > _vc_buf_size) {
       ostringstream err;
       err << "Buffer overflow for VC " << vc;
@@ -119,7 +120,8 @@ void BufferState::PrivateBufferPolicy::SendingFlit(Flit const * const f)
 
 bool BufferState::PrivateBufferPolicy::IsFullFor(int vc) const
 {
-  if (vc != dutyVC)
+  int const duVC = _buffer_state->GetDutyVC();
+  if (vc != duVC)
     return (_buffer_state->OccupancyFor(vc) >= _vc_buf_size);
   else
     return (_buffer_state->OccupancyFor(vc) >= _duty_buf_size);

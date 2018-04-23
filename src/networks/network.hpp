@@ -41,7 +41,8 @@
 #include "channel.hpp"
 #include "config_utils.hpp"
 #include "globals.hpp"
-#include "trafficmanager.hpp"
+
+class TrafficManager;
 
 typedef Channel<Credit> CreditChannel;
 

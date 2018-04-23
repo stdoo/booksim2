@@ -102,7 +102,7 @@ class ChaosRouter : public Router {
   void _SendFlits( );
   void _SendCredits( );
 
-  virtual void _InternalStep( );
+  virtual void _InternalStep(int subnet, TrafficManager* trafficmanager );
 
 public:
   ChaosRouter( const Configuration& config,

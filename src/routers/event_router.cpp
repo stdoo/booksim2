@@ -164,7 +164,7 @@ void EventRouter::ReadInputs( )
   _ReceiveCredits( );
 }
 
-void EventRouter::_InternalStep( )
+void EventRouter::_InternalStep( int subnet, TrafficManager* trafficmanager)
 {
   // Receive incoming flits
   _IncomingFlits( );

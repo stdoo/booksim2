@@ -1911,7 +1911,7 @@ void chaos_mesh( const Router *r, const Flit *f,
     outputs->AddRange( 2*gN, 0, 0 ); 
   }
 }
-//vcEnd为gNumVCs-1，因为gNumVCs为配置文件里面的vc数，不参与路由分配
+//duty buffer也会参与路由分配
 // =================odd-even routing==============================
 void oddeven_mesh(const Router *r, const Flit *f, int in_channel, OutputSet *outputs, bool inject) {
     int vcBegin = 0, vcEnd = gNumVCs-1;
