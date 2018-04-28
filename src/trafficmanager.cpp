@@ -1040,19 +1040,8 @@ void TrafficManager::_Step( )
                 list<Flit *> const & pp = _partial_packets[n][c];
 
                 if(pp.empty()) {
-//dest_buf状态改变有三个契机，一是持续时间，如idle变sleeping，wakingup变active；二是flit过来，如sleeping变wakingup，idle变active；三是buffer为空，且最后是tail flit离开，如active转idle。
-                    if (dest_buf->GetState() == BufferState::idle) {
-                        dest_buf->AddIdleTime();
-                        if (dest_buf->GetIdleTime() >= dest_buf->GetIdleTimeout()) {
-                            dest_buf->SetState(BufferState::sleeping);
-                        }
-                    }
-                    if (dest_buf->GetState() == BufferState::wakingup) {
-                        dest_buf->AddWakingTime();
-                        if (dest_buf->GetWakingTime() >= dest_buf->GetWakingTimeout()) {
-                            dest_buf->SetState(BufferState::active);
-                        }
-                    }
+//dest_buf状态改变有三个契机，一是没有flit过来，如idle变sleeping，wakingup变active；二是flit过来，如sleeping变wakingup，idle变active；三是buffer为空，且最后是tail flit离开，如active转idle。
+                    dest_buf->nextBufWithoutFlit();
                     continue;
                 }
 
@@ -1115,48 +1104,36 @@ void TrafficManager::_Step( )
                                    << ":" << endl;
                     }
 
-                        for (int i = 1; i <= vc_count; ++i) {//求出可用的vc
-                            int const lvc = _last_vc[n][subnet][c];
-                            int vc =
-                                    (lvc < vc_start || lvc > vc_end) ?
-                                    vc_start :
-                                    (vc_start + (lvc - vc_start + i) % vc_count);
-                            assert((vc >= vc_start) && (vc <= vc_end));
-//head flit过来，dest_buf状态会有变化；根据不同的状态，会选择不同的vc
-                            if (dest_buf->GetState() == BufferState::idle) {
-                                dest_buf->SetState(BufferState::active);
+                    for (int i = 1; i <= vc_count; ++i) {//求出可用的vc
+                        int const lvc = _last_vc[n][subnet][c];
+                        int vc =
+                                (lvc < vc_start || lvc > vc_end) ?
+                                vc_start :
+                                (vc_start + (lvc - vc_start + i) % vc_count);
+                        assert((vc >= vc_start) && (vc <= vc_end));
+//修改dest_buf状态并根据状态修改vc
+                        dest_buf->nextBufWithFlit(vc);
+                        if (!dest_buf->IsAvailableFor(vc)) {
+                            if (cf->watch) {
+                                *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                           << "  Output VC " << vc << " is busy." << endl;
                             }
-                            if (dest_buf->GetState() == BufferState::sleeping) {
-                                dest_buf->SetState(BufferState::wakingup);
-                                vc = dest_buf->GetDutyVC();
-                            }
-                            if (dest_buf->GetState() == BufferState::wakingup) {
-                                dest_buf->AddWakingTime();
-                                if (dest_buf->GetWakingTime() >= dest_buf->GetWakingTimeout())
-                                    dest_buf->SetState(BufferState::active);
-                                vc = dest_buf->GetDutyVC();
-                            }
-                            if (!dest_buf->IsAvailableFor(vc)) {
+                        } else {
+                            if (dest_buf->IsFullFor(vc)) {
                                 if (cf->watch) {
                                     *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                               << "  Output VC " << vc << " is busy." << endl;
+                                               << "  Output VC " << vc << " is full." << endl;
                                 }
                             } else {
-                                if (dest_buf->IsFullFor(vc)) {
-                                    if (cf->watch) {
-                                        *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                                   << "  Output VC " << vc << " is full." << endl;
-                                    }
-                                } else {
-                                    if (cf->watch) {
-                                        *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                                   << "  Selected output VC " << vc << "." << endl;
-                                    }
-                                    cf->vc = vc;
-                                    break;
+                                if (cf->watch) {
+                                    *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                               << "  Selected output VC " << vc << "." << endl;
                                 }
+                                cf->vc = vc;
+                                break;
                             }
                         }
+                    }
                 }
 	
                 if(cf->vc == -1) {

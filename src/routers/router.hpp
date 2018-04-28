@@ -125,17 +125,51 @@ public:
   inline int GetID( ) const {return _id;}
 //根据路由器当前的输入端口找到上一个路由器的id，不包括PE
   inline int GetLastID(int input){
+      int cur_id = this->_id;
         switch(input){
             case 0:
-                return this->_id + 1;
+                return rightNode(cur_id, 0);
             case 1:
-                return this->_id - 1;
+                return leftNode(cur_id, 0);
             case 2:
-                return this->_id - gK;
+                return leftNode(cur_id, 1);
             case 3:
-                return this->_id + gK;
+                return rightNode(cur_id, 1);
+            default:
+                return -1;
         }
     }
+//power
+    int pow(int k, int dim){
+      if(dim == 0)
+          return 1;
+      else if(dim == 1)
+          return k;
+      else if(dim % 2 == 1)
+          return pow(pow(k, dim / 2), 2) * k;
+      else
+          return pow(pow(k, dim / 2), 2);
+  }
+//left node and up node
+    inline int leftNode(int node, int dim){
+      int k = gK;
+      int k_dim = pow(k, dim);
+      int dim_location = (node / k_dim) % k;
+      if(dim_location == 0)
+          return (node + k_dim * (k - 1));
+      else
+          return (node - k_dim);
+  }
+//right node and down node
+    inline int rightNode(int node, int dim){
+        int k = gK;
+        int k_dim = pow(k, dim);
+        int dim_location = (node / k_dim) % k;
+        if(dim_location == k - 1)
+            return (node - k_dim * (k - 1));
+        else
+            return (node + k_dim);
+  }
 //根据当前输入端口找到上一个路由器的输出端口
   inline int GetLastOutport(int input){
         switch(input){
@@ -147,6 +181,8 @@ public:
                 return 3;
             case 3:
                 return 2;
+            default:
+                return -1;
         }
     }
   virtual int GetUsedCredit(int o) const = 0;

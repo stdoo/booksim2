@@ -184,7 +184,6 @@ public:
   inline BufferState * GetNextBuf(int output){
 	  return _next_buf[output];
   }
-
 };
 
 #endif

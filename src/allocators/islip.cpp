@@ -62,16 +62,21 @@ void iSLIP_Sparse::Allocate( )//修改grants的值，将output授权给input
 
       // Skip loop if there are no requests
       // or the output is already matched
+//_out_req[output]表示所有对该output的请求列表
+//第一个while找到请求列表中第一个满足input>=input_offset的请求，为方便描述，标记该请求为Q。
+//在第二个while中判断Q的input能否与output匹配，若不能匹配，遍历请求列表中Q之后的请求（不需要满足input>=input_offset），判断能否匹配；
+//若还是不能匹配，遍历Q之前的所有请求，显然这些请求也不满足	input>=input_offset，看能否匹配。
+//只要出现匹配，就把output授权给对应的input
       if ( ( _out_req[output].empty( ) ) ||
 	   ( _outmatch[output] != -1 ) ) {//_outmach全部初始化为-1，只要_out_req不为空就不用continue
 	continue;
       }
 
       // A round-robin arbiter between input requests
-      input_offset = _gptrs[output];//_gptrs全部初始化为0
+      input_offset = _gptrs[output];//如果上一次有input请求output，那么这次的input_offset = input + 1。
 
-      p = _out_req[output].begin( );
-      while( ( p != _out_req[output].end( ) ) &&
+      p = _out_req[output].begin( );//p为该output对应的第一个request，可能有多个input请求这个output，上次分配给了input，这次分配给input + 1或大于（input + 1）的输入
+		while( ( p != _out_req[output].end( ) ) &&
 	     ( p->second.port < input_offset ) ) {
 	p++;
       }
@@ -80,7 +85,7 @@ void iSLIP_Sparse::Allocate( )//修改grants的值，将output授权给input
       while( (!wrapped) || 
 	     ( ( p != _out_req[output].end( ) ) &&
 	       ( p->second.port < input_offset ) ) ) {
-	if ( p == _out_req[output].end( ) ) {
+	if ( p == _out_req[output].end( ) ) {//p由end回到begin就是wrapped
 	  if ( wrapped ) { break; }
 	  // p is valid here because empty lists
 	  // are skipped (above)
@@ -148,7 +153,7 @@ void iSLIP_Sparse::Allocate( )//修改grants的值，将output授权给input
 
 	// we know the output is free (above) and
 	// if the input is free, grant request
-	if ( grants[output] == input ) {
+	if ( grants[output] == input ) {//前面已经将output授权给了某个input，现在只要找出这个input就可以完成匹配
 	  // Accept
 	  _inmatch[input]   = output;
 	  _outmatch[output] = input;

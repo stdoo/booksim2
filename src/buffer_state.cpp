@@ -661,7 +661,7 @@ void BufferState::SendingFlit( Flit const * const f )
   _last_pid[vc] = f->pid;
 }
 
-void BufferState::TakeBuffer( int vc, int tag )
+void BufferState::TakeBuffer( int vc, int tag )//tag表示当前flit所在的vc对应的switch端口，vc表示flit的目的vc
 {
   assert( ( vc >= 0 ) && ( vc < _vcs ) );
 

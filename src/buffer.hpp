@@ -159,7 +159,7 @@ public:
   }
 
 //将当前buffer转换为上一个节点的dest buffer
-  inline int CurToDest(int cur, int node) {
+  /*inline int CurToDest(int cur, int node) {
       switch (cur){
         case 0:
           return 1;
@@ -172,7 +172,7 @@ public:
         case 4:
           return node;
       }
-    }
+    }*/
 
 #ifdef TRACK_BUFFERS
   inline int GetOccupancyForClass(int c) const

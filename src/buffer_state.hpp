@@ -276,12 +276,62 @@ public:
     inline int GetIdleTime() {
         return _idle_time;
     }
-    inline void SetidleTime(int idletime) {
+    inline void SetIdleTime(int idletime) {
         _idle_time = idletime;
     }
     inline void AddIdleTime() {
         ++ _idle_time;
     }
+
+    /**
+ * buffer state changed without flit
+ * @param id
+ * @param subnet
+ * @param nextBuf
+ */
+    inline void nextBufWithoutHeadFlit(){
+        if(this->GetState() == BufferState::idle){
+            this->AddIdleTime();
+            if(this->GetIdleTime() >= this->GetIdleTimeout()){
+                this->SetState(BufferState::sleeping);
+                this->SetIdleTime(0);
+            }
+        }
+        if(this->GetState() == BufferState::wakingup){
+            this->AddWakingTime();
+            if(this->GetWakingTime() >= this->GetWakingTimeout()){
+                this->SetState(BufferState::active);
+                this->SetWakingTime(0);
+            }
+        }
+    }
+
+/**
+ * buffer state changed with flit
+ * @param nextBuf
+ * @param vc
+ * @return
+ */
+    inline int nextBufWithHeadFlit(int vc){
+        if(this->GetState() == BufferState::idle){
+            this->SetState(BufferState::active);
+            this->SetIdleTime(0);
+        }
+        if(this->GetState() == BufferState::sleeping){
+            this->SetState(BufferState::wakingup);
+            vc = this->GetDutyVC();
+        }
+        if(this->GetState() == BufferState::wakingup){
+            this->AddWakingTime();
+            vc = this->GetDutyVC();
+            if(this->GetWakingTime() >= this->GetWakingTimeout()){
+                this->SetState(BufferState::active);
+                this->SetWakingTime(0);
+            }
+        }
+        return vc;
+    }
+
 #ifdef TRACK_BUFFERS
   inline int OccupancyForClass(int c) const {
     assert((c >= 0) && (c < _classes));

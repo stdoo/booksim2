@@ -317,7 +317,7 @@ public:
   }
 
   inline Router* GetRouter(int n, int subnet){
-          return _router[n][subnet];
+          return _router[subnet][n];
   }
 };
 
