@@ -1,0 +1,5 @@
+flit流通
+period 1: 产生flits--(Channel::Send)-->_input
+period 2: _input--(Channel::ReadInputs)-->_wait_queue--(Channel::WriteOutputs)-->_output
+period 3: _output--(Router::ReadInputs)-->_in_queue_flits--(Router::_InputQueuing)-->vc buffer--(Router::SWAllocUpdate)-->_crossbar_flit
+period 4: _crossbar_flit--(Router::SwitchUpdate)-->_output_buffer--(Router::WriteOutputs(Channel::Send))--_input

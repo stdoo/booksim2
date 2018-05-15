@@ -1,0 +1,5 @@
+error: could not load cache
+solve: file--reload cmake project
+
+error: function definition is not allowed here (oddeven)
+solve: 将oddeven函数定义在另一个函数里面了，没注意到大括号的位置
