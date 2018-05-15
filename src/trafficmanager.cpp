@@ -956,7 +956,7 @@ void TrafficManager::_Step( )
     bool flits_in_flight = false;
     for(int c = 0; c < _classes; ++c) {
         flits_in_flight |= !_total_in_flight_flits[c].empty();
-    }
+    }//如果网络里面有flits，并且在_deadlock_warn_timeout时间内没有一个flit从eject信道出网络，就会警告deadlock
     if(flits_in_flight && (_deadlock_timer++ >= _deadlock_warn_timeout)){
         _deadlock_timer = 0;
         cout << "WARNING: Possible network deadlock.\n";
@@ -976,7 +976,7 @@ void TrafficManager::_Step( )
                                << " from VC " << f->vc
                                << "." << endl;
                 }
-                flits[subnet].insert(make_pair(n, f));//flits里面保存eject信道的_output flit
+                flits[subnet].insert(make_pair(n, f));//flits里面保存eject信道的_output flit；这里是插入map
                 if((_sim_state == warming_up) || (_sim_state == running)) {
                     ++_accepted_flits[f->cl][n];
                     if(f->tail) {
@@ -1041,7 +1041,7 @@ void TrafficManager::_Step( )
 
                 if(pp.empty()) {
 //dest_buf状态改变有三个契机，一是没有flit过来，如idle变sleeping，wakingup变active；二是flit过来，如sleeping变wakingup，idle变active；三是buffer为空，且最后是tail flit离开，如active转idle。
-                    dest_buf->nextBufWithoutFlit();
+                    dest_buf->nextBufWithoutHeadFlit();
                     continue;
                 }
 
@@ -1112,7 +1112,7 @@ void TrafficManager::_Step( )
                                 (vc_start + (lvc - vc_start + i) % vc_count);
                         assert((vc >= vc_start) && (vc <= vc_end));
 //修改dest_buf状态并根据状态修改vc
-                        dest_buf->nextBufWithFlit(vc);
+                        dest_buf->nextBufWithHeadFlit(vc);
                         if (!dest_buf->IsAvailableFor(vc)) {
                             if (cf->watch) {
                                 *gWatchOut << GetSimTime() << " | " << FullName() << " | "
@@ -1261,7 +1261,7 @@ void TrafficManager::_Step( )
                 ++_ejected_flits[f->cl][n];
 #endif
 	
-                _RetireFlit(f, n);
+                _RetireFlit(f, n);//deadlock_timer清零
             }
         }
         flits[subnet].clear();//clear函数将map清空
